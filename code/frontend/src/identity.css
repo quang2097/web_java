@@ -1,0 +1,4 @@
+.identity-card { margin: 24px 0; padding: 20px; border: 1px solid #dce2d9; border-radius: 8px; background: #fff; }
+.identity-card strong, .identity-card span { display: block; }
+.identity-card span { color: #69806d; margin-top: 8px; font-size: 12px; }
+.identity-card p { margin-bottom: 0; font-size: 11px; }
