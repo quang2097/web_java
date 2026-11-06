@@ -10,39 +10,76 @@ See [architecture and requirement coverage](docs/architecture.md) for the ER dia
 - Node.js 22 LTS recommended and npm.
 - PostgreSQL 17, either installed locally or using Docker Compose.
 
-## Start on Windows PowerShell
+## Start on Windows
 
-From the project root, configure your local database password and optionally launch PostgreSQL using Docker:
+### Normal startup on this machine
+
+1. Keep your installed PostgreSQL server running on `localhost:5432`. The `supermarket` database has already been created on this machine.
+2. Double-click `Start-Supermarket.cmd` in the project folder. It uses the portable Java/Maven in `.tools`, loads your saved credentials, builds the frontend, and starts Spring Boot.
+3. Wait for `Started SupermarketApplication`, then open [Supermarket](http://localhost:8080).
+4. Sign in with your **website account**, using the username/password chosen during initial setup.
+
+Docker is not required for this setup. Do not run `docker compose up -d` alongside the installed PostgreSQL server: both use port 5432. The standard launcher now uses the installed database without a Docker prompt.
+
+Keep the launcher window open while using the app. Press Ctrl+C in that window to stop the app; PostgreSQL remains running. If the app is already running, another launch reports its URL and exits without starting a second server. Configuration changes take effect after stopping and restarting the running app.
+
+### The three different credentials
+
+| Credential | Where to use it | Meaning |
+| --- | --- | --- |
+| PostgreSQL role `postgres` and server password | Launcher database setup / pgAdmin server connection | Existing database login. This machine's saved login was verified against localhost:5432. |
+| Website username and password | Supermarket sign-in page | Separate account created during initial setup. Website passwords require 12-72 printable ASCII characters; usernames use 3-64 letters, digits, dot, underscore or hyphen. |
+| pgAdmin master password | pgAdmin only | Unlocks pgAdmin's saved passwords. It is not a database username or the website password. |
+
+Double-click `Configure-Database.cmd` to update the saved PostgreSQL login. This changes only the launcher's connection settings; it does not change a PostgreSQL password or an existing website account. For pgAdmin, use host `localhost`, port `5432`, maintenance database `postgres`, username `postgres`, and the matching server password.
+
+Double-click `Find-Postgres-Password.cmd` to look for a saved local `postgres` password in the launcher settings or your PostgreSQL password file. It displays a masked password with a Show password option. It does not recover an unknown password from a database hash or reset passwords.
+
+Saved credentials and a stable JWT secret are kept in `.tools/launcher-config.xml`. Passwords and the JWT secret are encrypted for the Windows account/computer that saved them. Keep this file for future launches. Deleting it repeats setup, changes the JWT secret, and does not reset existing database or website passwords. The first launch without this file prompts separately for the database login and website account. An inherited `DB_URL` overrides the default database address.
+
+### Logs and troubleshooting
+
+Each launch writes its own file under `.tools/logs/startup-<timestamp>-<process-id>.log`. The launcher prints the exact path; `.tools/latest-startup.txt` contains the latest path. Logs include frontend build output, Spring/Maven output, and launcher errors after toolchain activation. You can read a log while the server runs.
+
+The old `.tools/last-startup.log` is a legacy file and may remain occupied by an older running instance. New launches do not overwrite it. Stop the old launcher with Ctrl+C before restarting; there is no need to delete the log.
+
+| Message | Action |
+| --- | --- |
+| Already running | Open http://localhost:8080. Stop the existing launcher first if you need to restart. |
+| Port 8080 already in use | Close the other server before launching another copy. |
+| Password authentication failed | Run `Configure-Database.cmd`; use the PostgreSQL role and server password, not website credentials or a pgAdmin master password. |
+| Database supermarket does not exist | Create a database named `supermarket` in pgAdmin, owned by the configured PostgreSQL role. This was already done on this machine. |
+| Connection refused | Check that your installed PostgreSQL service is running on port 5432. |
+| Docker engine / named pipe error | Use the normal local launcher. Docker is unnecessary for the current setup. |
+| Maven not recognized | Use the launcher, or activate the portable toolchain using the command below. |
+
+### Optional terminal commands
+
+From the project root, activate the portable Java/Maven for the current PowerShell session:
 
 ```powershell
-$env:DB_PASSWORD = Read-Host 'Local PostgreSQL password'
-docker compose up -d
+. .\scripts\activate.ps1
 ```
 
-Alternatively create a database `supermarket` owned by a login role `supermarket` on your PostgreSQL server, with that password. The default connection is `jdbc:postgresql://localhost:5432/supermarket`; override `DB_URL` and `DB_USER` if needed. Java reads environment variables, not `.env` files. The supplied `.env.example` is for Docker Compose only. Compose binds PostgreSQL to localhost and retains its data in a named volume.
-
-Build the Vue frontend before launching the backend:
+To run with the same saved settings as the double-click launcher:
 
 ```powershell
-cd frontend
-npm.cmd install
-npm.cmd run build
-cd ../backend
-$randomBytes = New-Object byte[] 32
-$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-$rng.GetBytes($randomBytes)
-$env:JWT_SECRET = [Convert]::ToBase64String($randomBytes)
-$rng.Dispose()
-$env:APP_ADMIN_USERNAME = 'admin'
-$env:APP_ADMIN_PASSWORD = Read-Host 'Initial admin password (12–72 printable ASCII characters)'
-mvn spring-boot:run
+powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\scripts\start-supermarket.ps1
 ```
 
-Open [the application](http://localhost:8080). Sign in with the admin account you supplied. Flyway creates the schema; the transactional bootstrap creates both an employee and the associated account, with a BCrypt password hash. It never resets an existing account password. Account names use 3–64 ASCII letters, digits, dot, underscore or hyphen. Passwords use printable ASCII characters up to 72 bytes. Remove `APP_ADMIN_USERNAME` and `APP_ADMIN_PASSWORD` from the environment after initialization. Retain the same securely stored `JWT_SECRET` across restarts and application instances; changing it invalidates tokens.
+For a fresh checkout without `.tools`, run `scripts/setup-local-java.ps1` first (internet required). Node.js/npm is also required. The database must exist and its configured role must have permission to create application tables. Flyway creates the schema; initial bootstrap creates the website account and never resets an existing account password.
 
-For a packaged application run `mvn clean package`, then `java -jar target/supermarket-1.0.0.jar`. Maven includes `frontend/dist/` in the jar.
+### Optional Docker alternative
 
-For frontend development, keep the Java server on port 8080 and run `npm.cmd run dev` in `frontend` in another terminal. Vite proxies `/api` to the backend. The Vite preview command only serves static build output and has no backend proxy.
+Only use this instead of a native PostgreSQL instance. Docker Desktop must be installed and running, and port 5432 must be free. The supplied Compose database uses role `supermarket`; configure the launcher for that role and the container's database password before using it.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\scripts\start-supermarket.ps1 -UseDocker
+```
+
+An existing Docker volume keeps its original database password; changing the launcher password does not reset it. Docker data remains after the app stops.
+
+For frontend development, keep the backend on port 8080 and run `npm.cmd run dev` in `frontend` in another terminal. Vite proxies `/api` to the backend. Vite preview serves static files only.
 
 ## REST API
 
