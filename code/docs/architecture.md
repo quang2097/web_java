@@ -45,16 +45,21 @@ The last three are authorization policies for future modules, not existing busin
 
 This is a reusable stock primitive. A future checkout service must wrap invoice writes and all stock changes in a single transaction, translate optimistic conflicts to HTTP 409, and let the cashier retry against fresh stock. Do not automatically retry payment requests.
 
-## Remaining assignment modules
+## Implemented business & AI modules (V2–V4)
 
-The original sign-in task does not implement the following full-project features:
-
-- Product, customer, employee, warehouse and invoice management REST endpoints and Vue screens.
-- POS barcode search, cart, discounts, invoice completion and receipt screens.
-- VNPay or MoMo payment gateway integration. Select a provider and obtain sandbox merchant credentials, signing secret and callback URLs. A payment module needs unique merchant order IDs, a durable payment-attempt table, signature and amount verification, idempotent callbacks and transactional invoice state transitions. Browser redirects alone must never mark an invoice paid.
-- Sales reporting and a complete administration dashboard.
-
-Payment gateway network calls should happen outside long-running inventory database transactions; model pending payments and reconcile callbacks separately. These are design requirements for the next module, not claims of implemented payment functionality.
+- **Account & password workflows** (`modules/account`, `V4__password_requests.sql`):
+  - `POST /api/auth/change-password`: authenticated password change (increments `accounts.version` and invalidates prior JWTs).
+  - `POST /api/auth/password-requests`: public forgot-password request by submitting personal employee details.
+  - `GET /api/management/password-requests`, `POST /api/management/password-requests/{id}/approve|reject`: `MANAGER` handles `STAFF` requests; `ADMIN` handles all roles.
+  - `GET/POST /api/management/accounts`, `PUT /api/management/accounts/{id}/enabled`: `MANAGER` creates/manages `STAFF` accounts; `ADMIN` manages `STAFF`, `MANAGER` and `ADMIN`.
+- **Catalog & stock** (`modules/catalog`, `modules/stock`, `V2__catalog_stock.sql`):
+  - Categories, products, SKUs (barcode + variant + unit price), suppliers, warehouses, inventory thresholds and atomic stock import receipts (`import_receipts`, `import_lines`).
+- **POS & payments** (`modules/pos`, `V3__pos_payment.sql`):
+  - Barcode lookup (`GET /api/pos/skus/by-code/{code}`), draft invoice creation (`POST /api/pos/invoices`), and transactional payment completion (`POST /api/pos/invoices/{id}/pay`) supporting **CASH** and **TRANSFER** (VietQR image URL with prefilled amount and transfer reference).
+- **Reporting, forecasting & AI** (`modules/report`, `modules/ai`):
+  - 14-day revenue summary, top-selling SKUs, co-purchase recommendations (`GET /api/pos/recommendations`), and 4-week Weighted Moving Average 7-day demand forecasting (`GET /api/management/reports/forecast`).
+  - `POST /api/pos/ai/recognize-product`: Gemini Vision product recognition from camera/photo when a barcode is unreadable.
+  - `POST /api/management/ai/chat`: natural-language business assistant grounded strictly on `ReportService` snapshots (with automatic local analytics fallback when `GEMINI_API_KEY` is not set).
 
 ## References
 

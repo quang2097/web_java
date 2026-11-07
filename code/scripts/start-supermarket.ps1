@@ -96,6 +96,22 @@ try {
     $env:APP_ADMIN_PASSWORD = $config.Admin.GetNetworkCredential().Password
     $env:JWT_SECRET = ([System.Net.NetworkCredential]::new('', $config.JwtSecret)).Password
 
+    # Đọc thêm biến môi trường tuỳ chọn từ code/.env (GEMINI_API_KEY, VIETQR_*) nếu chưa đặt trong môi trường
+    $dotenvPath = Join-Path $projectPath '.env'
+    if (Test-Path -LiteralPath $dotenvPath) {
+        Get-Content -LiteralPath $dotenvPath -Encoding UTF8 | ForEach-Object {
+            $line = $_.Trim()
+            if ($line -and !$line.StartsWith('#') -and $line.Contains('=')) {
+                $parts = $line.Split('=', 2)
+                $k = $parts[0].Trim()
+                $v = $parts[1].Trim().Trim('"').Trim("'")
+                if ($k -and [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($k))) {
+                    [Environment]::SetEnvironmentVariable($k, $v, 'Process')
+                }
+            }
+        }
+    }
+
     $existingWebsite = $null
     try { $existingWebsite = Invoke-WebRequest -UseBasicParsing 'http://localhost:8080' -TimeoutSec 3 } catch { }
     if ($existingWebsite -and $existingWebsite.Content -match '<title>[^<]*Supermarket</title>') {

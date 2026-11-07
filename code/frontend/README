@@ -1,0 +1,24 @@
+# Mã nguồn Frontend (Vue 3.5 + Vite 6 + Pinia + Vue Router + Chart.js)
+
+## Cấu trúc thư mục (`src/`)
+
+- `main.js`, `App.vue`: Khởi tạo ứng dụng, màn hình đăng nhập, form gửi yêu cầu quên mật khẩu và thanh điều hướng theo vai trò (`STAFF`, `MANAGER`, `ADMIN`).
+- `stores/auth.js`: Lưu thông tin người dùng và Bearer JWT **trong bộ nhớ** (không lưu `localStorage`/`cookie`).
+- `api/http.js`: Hàm `apiFetch` tự động gắn header `Authorization: Bearer <token>` và định dạng tiền tệ VNĐ.
+- `router/index.js`: Định tuyến SPA và kiểm tra quyền truy cập từng màn hình.
+- `views/`:
+  - `PosView.vue`: Quét mã vạch, tìm kiếm mặt hàng, nhận diện ảnh bằng AI (Gemini Vision), gợi ý mua kèm, thanh toán tiền mặt / VietQR và phiếu in hoá đơn.
+  - `InvoicesView.vue`: Lịch sử và chi tiết hoá đơn.
+  - `CatalogView.vue`: Quản lý danh mục, sản phẩm, mã vạch và cập nhật giá bán.
+  - `StockView.vue`: Dự báo nhu cầu 7 ngày tới (WMA 4 tuần) và lập phiếu nhập kho.
+  - `ReportsView.vue`: Thẻ KPI, biểu đồ doanh thu 14 ngày và khung chat Trợ lý AI.
+  - `AccountsView.vue`: Đổi mật khẩu cá nhân, tạo/khoá tài khoản và duyệt yêu cầu cấp lại mật khẩu.
+
+## Lệnh phát triển & đóng gói
+
+```powershell
+npm install
+npm run dev     # chạy Vite dev server (proxy /api sang localhost:8080)
+npm run build   # đóng gói tĩnh vào dist/ để Spring Boot phục vụ trực tiếp
+```
+

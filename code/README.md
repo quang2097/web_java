@@ -88,6 +88,15 @@ For frontend development, keep the backend on port 8080 and run `npm.cmd run dev
 | POST | `/api/auth/login` | JSON `{ "accountName": "admin", "password": "your-password" }`; 200 returns `{accessToken, tokenType, expiresIn, user}` |
 | GET | `/api/auth/me` | Bearer token required; returns `{accountName, fullName, roles}` |
 | POST | `/api/auth/logout` | Bearer token required; revokes token and returns 204 |
+| POST | `/api/auth/change-password` | Bearer token required; changes password and invalidates prior JWTs |
+| POST | `/api/auth/password-requests` | Public; creates a password reset request verified against employee code and full name |
+| GET/POST | `/api/pos/skus`, `/api/pos/invoices`, `/api/pos/invoices/{id}/pay` | POS barcode lookup, invoice creation, cash/VietQR transfer completion |
+| POST | `/api/pos/ai/recognize-product` | Multipart image upload for Gemini Vision product recognition |
+| GET/POST | `/api/management/categories`, `/api/management/products`, `/api/management/imports` | Catalog, pricing, inventory and stock import management |
+| GET/POST | `/api/management/reports/summary`, `/api/management/reports/forecast`, `/api/management/ai/chat` | Revenue KPIs, 4-week WMA demand forecasting and AI data assistant |
+| GET/POST | `/api/management/accounts`, `/api/management/password-requests` | Role-scoped account creation and password-request approval (`MANAGER` → `STAFF`, `ADMIN` → all) |
+
+Set `GEMINI_API_KEY` in the environment to enable live Google Gemini responses for vision recognition and natural-language analytics; when unset, the analytics assistant automatically uses the built-in local analytics engine.
 
 Malformed input returns 400; incorrect credentials return 401. Missing, expired, tampered or revoked tokens return 401; insufficient role permissions return 403. No password hashes are returned by the API. JWTs expire after 15 minutes and remain in browser memory only: reloading requires a new login. Forgot password currently provides administrator guidance.
 

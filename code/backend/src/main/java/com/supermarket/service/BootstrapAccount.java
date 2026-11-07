@@ -8,7 +8,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-@Component
+@Component @org.springframework.core.annotation.Order(1)
 public class BootstrapAccount implements ApplicationRunner {
     private final AccountRepository accounts;
     private final EmployeeRepository employees;
