@@ -1,0 +1,45 @@
+# Thiết kế cơ sở dữ liệu (PostgreSQL + Flyway)
+
+Cơ sở dữ liệu được quản lý tự động bằng Flyway trong `code/backend/src/main/resources/db/migration/` (`V1__supermarket.sql` đến `V4__password_requests.sql`).
+
+## Sơ đồ thực thể liên kết (ERD)
+
+```mermaid
+erDiagram
+    EMPLOYEES ||--o| ACCOUNTS : authenticates
+    ACCOUNTS ||--o{ PASSWORD_REQUESTS : requests
+    CATEGORIES ||--o{ PRODUCTS : groups
+    PRODUCTS ||--o{ SKUS : variants
+    WAREHOUSES ||--o{ INVENTORY : stocks
+    SKUS ||--o{ INVENTORY : stocked_in
+    SUPPLIERS ||--o{ IMPORT_RECEIPTS : supplies
+    WAREHOUSES ||--o{ IMPORT_RECEIPTS : receives
+    EMPLOYEES ||--o{ IMPORT_RECEIPTS : creates
+    IMPORT_RECEIPTS ||--|{ IMPORT_LINES : contains
+    SKUS ||--o{ IMPORT_LINES : imported
+    EMPLOYEES ||--o{ INVOICES : cashier
+    CUSTOMERS o|--o{ INVOICES : buys
+    INVOICES ||--|{ INVOICE_LINES : lines
+    SKUS ||--o{ INVOICE_LINES : sold
+    INVOICES ||--o| PAYMENTS : paid_by
+```
+
+## Danh sách bảng chính
+
+| Bảng | Migration | Mô tả & Ràng buộc quan trọng |
+| --- | --- | --- |
+| `employees` | V1 | Hồ sơ nhân sự (`employee_code` UNIQUE, `full_name`) |
+| `accounts` | V1 | Tài khoản đăng nhập (`account_name` UNIQUE, `password_hash` BCrypt, `role` IN `ADMIN/MANAGER/STAFF`, `enabled`, `version`) |
+| `revoked_tokens` | V1 | Danh sách JWT ID đã đăng xuất cho tới khi hết hạn |
+| `categories` | V2 | Danh mục hàng hoá (`name` UNIQUE) |
+| `products` | V1, V2 | Thông tin sản phẩm chung (`name`, `category_id`, `image_url`, `active`) |
+| `skus` | V1 | Đơn vị bán hàng & mã vạch (`code` UNIQUE, `variant`, `unit`, `unit_price >= 0`) |
+| `warehouses` | V1 | Kho chứa hàng (`code` UNIQUE, `name`) |
+| `inventory` | V1, V2 | Tồn kho theo cặp `(warehouse_id, sku_id)` UNIQUE, `quantity >= 0`, `min_quantity >= 0`, khoá lạc quan `version` |
+| `suppliers` | V2 | Nhà cung cấp (`name`, `phone`, `address`) |
+| `import_receipts`, `import_lines` | V2 | Phiếu nhập kho và chi tiết dòng nhập (`quantity > 0`, `unit_cost >= 0`) |
+| `customers` | V1 | Khách hàng (`full_name`, `phone`) |
+| `invoices`, `invoice_lines` | V1, V3 | Hoá đơn (`DRAFT/PAID/CANCELLED`, `total`, `paid_at`, `version`) và dòng hàng bán (`unit_price` lưu giá lịch sử lúc bán) |
+| `payments` | V3 | Thanh toán hoá đơn (`method` IN `CASH/TRANSFER`, `amount`, `received`, `change_amount`, `transfer_ref`) |
+| `password_requests` | V4 | Yêu cầu cấp lại mật khẩu (`PENDING/APPROVED/REJECTED`, `account_id`, `handled_by`) |
+

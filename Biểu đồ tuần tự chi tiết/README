@@ -1,0 +1,72 @@
+# Biểu đồ tuần tự chi tiết (Detailed Sequence Diagrams)
+
+## 1. Chi tiết giao dịch Thanh toán & Khoá lạc quan tồn kho (`PosService.pay`)
+
+```mermaid
+sequenceDiagram
+    actor Cashier as Thu ngân
+    participant C as PosController
+    participant S as PosService
+    participant IS as InventoryService
+    participant IR as InventoryRepository
+    participant PR as PaymentRepository
+    participant IVR as InvoiceRepository
+    participant DB as PostgreSQL
+
+    Cashier->>C: POST /api/pos/invoices/{id}/pay {method, received}
+    C->>S: pay(id, PayRequest)
+    activate S
+    Note over S,DB: @Transactional bắt đầu
+    S->>IVR: findById(id)
+    IVR->>DB: SELECT * FROM invoices WHERE id = ?
+    DB-->>S: Invoice (status = DRAFT)
+    loop Từng dòng InvoiceLine của hoá đơn
+        S->>IR: findByWarehouseIdAndSkuId(warehouseId, skuId)
+        IR->>DB: SELECT * FROM inventory WHERE warehouse_id=? AND sku_id=?
+        DB-->>S: Inventory (id, quantity, version)
+        S->>IS: decreaseStock(inventoryId, line.quantity)
+        IS->>IR: save + flush (UPDATE inventory SET quantity=?, version=version+1 WHERE id=? AND version=?)
+        alt Có giao dịch khác vừa sửa cùng dòng tồn kho
+            DB-->>IS: 0 rows updated -> ObjectOptimisticLockingFailureException
+            IS-->>C: Rollback toàn bộ transaction -> HTTP 409 Conflict
+        end
+    end
+    S->>PR: save(Payment)
+    PR->>DB: INSERT INTO payments(...)
+    S->>IVR: flush(Invoice status=PAID, paidAt=now)
+    IVR->>DB: UPDATE invoices SET status='PAID', paid_at=?, version=version+1
+    Note over S,DB: Commit transaction
+    S-->>C: InvoiceView
+    deactivate S
+    C-->>Cashier: 200 OK (Phiếu thanh toán)
+```
+
+## 2. Chi tiết luồng Duyệt yêu cầu đổi mật khẩu & Vô hiệu hoá JWT cũ (`AccountService.handleRequest`)
+
+```mermaid
+sequenceDiagram
+    actor Manager as Quản lý / Admin
+    participant C as AccountController
+    participant S as AccountService
+    participant RR as PasswordRequestRepository
+    participant AR as AccountRepository
+    participant PE as BCryptPasswordEncoder
+    participant DB as PostgreSQL
+
+    Manager->>C: POST /api/management/password-requests/{id}/approve {newPassword}
+    C->>S: handleRequest(actorName, id, true, newPassword)
+    activate S
+    S->>AR: findByAccountName(actorName)
+    S->>RR: findWithDetailsById(id)
+    Note over S: Kiểm tra canManage(actor.role, target.role)<br/>MANAGER chỉ được duyệt STAFF; ADMIN duyệt tất cả
+    S->>PE: encode(newPassword)
+    PE-->>S: passwordHash (BCrypt cost 12)
+    S->>AR: save(targetAccount)
+    AR->>DB: UPDATE accounts SET password_hash=?, version=version+1 WHERE id=?
+    Note over DB: version tăng làm mọi JWT cũ của tài khoản này bị từ chối ở JwtDecoder
+    S->>RR: Cập nhật status=APPROVED, handledBy=actor, handledAt=now
+    S-->>C: RequestView
+    deactivate S
+    C-->>Manager: 200 OK
+```
+

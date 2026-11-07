@@ -1,0 +1,50 @@
+# Biểu đồ hoạt động (Activity Diagrams)
+
+## 1. Hoạt động Đăng nhập & Xác thực người dùng
+
+```mermaid
+flowchart TD
+    A["Người dùng nhập tên tài khoản & mật khẩu"] --> B["Gửi POST /api/auth/login"]
+    B --> C{"Dữ liệu hợp lệ?"}
+    C -- "Không" --> D["Trả HTTP 400: Thông tin không hợp lệ"]
+    C -- "Có" --> E{"Kiểm tra tài khoản tồn tại, enabled=true & khớp BCrypt?"}
+    E -- "Sai hoặc bị khoá" --> F["Trả HTTP 401: Sai tài khoản/mật khẩu hoặc đã bị khoá"]
+    E -- "Đúng" --> G["Sinh JWT HS256 (15 phút) chứa sub, roles, accountVersion, jti"]
+    G --> H["Lưu JWT trong bộ nhớ trình duyệt & điều hướng vào Quầy thu ngân"]
+```
+
+## 2. Hoạt động Quét mã hàng, Tính giá & Thanh toán tại quầy (POS)
+
+```mermaid
+flowchart TD
+    S["Thu ngân quét mã vạch hoặc chụp ảnh sản phẩm"] --> M{"Quét được mã vạch?"}
+    M -- "Có" --> L["Tra cứu GET /api/pos/skus/by-code/{code}"]
+    M -- "Mã mờ / Không tem" --> AI["Gửi ảnh lên POST /api/pos/ai/recognize-product (Gemini Vision)"]
+    AI --> L2["Chọn SKU từ top 3 gợi ý"]
+    L --> C["Cộng số lượng vào giỏ hàng & tính tổng tiền"]
+    L2 --> C
+    C --> D["Tạo hoá đơn nháp POST /api/pos/invoices (kiểm tra tồn kho)"]
+    D --> P{"Chọn phương thức thanh toán"}
+    P -- "Tiền mặt (CASH)" --> PC["Nhập tiền khách đưa & tính tiền thừa"]
+    P -- "Chuyển khoản (TRANSFER)" --> PQ["Hiển thị mã VietQR với số tiền & nội dung THANHTOAN HDxxxxxx"]
+    PC --> CF["Xác nhận thu tiền POST /api/pos/invoices/{id}/pay"]
+    PQ --> CF
+    CF --> TX["Transaction: trừ tồn kho (@Version) + lưu Payment + đổi trạng thái PAID"]
+    TX --> PR["Hiển thị phiếu thanh toán"]
+```
+
+## 3. Hoạt động Quên mật khẩu & Xử lý yêu cầu đổi mật khẩu
+
+```mermaid
+flowchart TD
+    U["Nhân viên/Quản lý chọn Quên mật khẩu"] --> F["Nhập tài khoản, họ tên, mã nhân viên, lý do"]
+    F --> R["POST /api/auth/password-requests"]
+    R --> V{"Khớp hồ sơ nhân viên?"}
+    V -- "Không" --> OK["Trả thông báo chung (tránh dò tài khoản)"]
+    V -- "Có" --> SV["Lưu password_requests (status = PENDING)"]
+    SV --> M["Quản lý (duyệt STAFF) hoặc Admin (duyệt tất cả) xem danh sách"]
+    M --> D{"Quyết định"}
+    D -- "Duyệt" --> AP["Nhập mật khẩu mới -> mã hoá BCrypt, tăng accounts.version, status = APPROVED"]
+    D -- "Từ chối" --> RJ["Cập nhật status = REJECTED"]
+```
+

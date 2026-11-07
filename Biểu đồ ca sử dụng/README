@@ -1,0 +1,16 @@
+# Biểu đồ ca sử dụng (Use Case Diagrams)
+
+Thư mục này chứa các biểu đồ ca sử dụng đã thiết kế cho hệ thống:
+
+1. **Xác thực & Tài khoản**:
+   - `Đăng nhập.png` & `Xác thực người dùng.png`: Đăng nhập bằng tài khoản/mật khẩu, cấp JWT hiệu lực 15 phút (`POST /api/auth/login`).
+   - `Đổi mật khẩu.png`: Nhân viên và Quản lý tự đổi mật khẩu sau khi xác thực mật khẩu hiện tại (`POST /api/auth/change-password`).
+   - `Quên mật khẩu.png` & `Tạo yêu cầu đổi mật khẩu.png`: Người dùng nhập thông tin cá nhân (tài khoản, họ tên, mã nhân viên) để gửi yêu cầu cấp lại mật khẩu (`POST /api/auth/password-requests`).
+   - `Xử lý yêu cầu đổi mật khẩu(Quản lý là actor).png`: Quản lý duyệt/từ chối yêu cầu đổi mật khẩu của Nhân viên (`POST /api/management/password-requests/{id}/approve|reject`).
+   - `Xử lý yêu cầu đổi mật khẩu(Admin là actor).png`: Admin xử lý yêu cầu đổi mật khẩu của cả Nhân viên và Quản lý.
+   - `Tạo tài khoản(Quản lý là actor).png`: Quản lý tạo tài khoản cho Nhân viên (`STAFF`).
+   - `Tạo tài khoản(Admin là actor).png`: Admin tạo tài khoản cho `ADMIN`, `MANAGER`, `STAFF` (`POST /api/management/accounts`).
+2. **Bán hàng tại quầy (POS) & Thanh toán**:
+   - `Quét mã hàng.png`: Bao gồm *Nhận diện mã hàng* (quét mã vạch `GET /api/pos/skus/by-code/{code}` hoặc nhận diện bằng camera qua AI `POST /api/pos/ai/recognize-product`), *Đếm số lượng hàng* và *Tính giá cả*.
+   - `Thanh toán.png`: Mở rộng sang *Thanh toán tiền mặt* (`CASH`) và *Thanh toán chuyển khoản* (`TRANSFER` kèm *Tạo mã QR* chuẩn VietQR).
+
