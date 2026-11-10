@@ -133,14 +133,26 @@ try {
     }
     if (!(Get-Command npm.cmd -ErrorAction SilentlyContinue)) { throw 'Install Node.js with npm, then start the launcher again.' }
     Push-Location (Join-Path $projectPath 'frontend')
+    $previousErrorPreference = $ErrorActionPreference
     try {
-        if (!(Test-Path 'node_modules')) {
-            & npm.cmd ci 2>&1 | Tee-Object -FilePath $logPath -Append
-            if ($LASTEXITCODE -ne 0) { throw 'Frontend dependency installation failed.' }
+        $dependencyFingerprint = (Get-FileHash -LiteralPath 'package.json', 'package-lock.json').Hash -join ':'
+        $dependencyStamp = 'node_modules/.supermarket-dependencies'
+        $installedFingerprint = if (Test-Path -LiteralPath $dependencyStamp) {
+            (Get-Content -LiteralPath $dependencyStamp -Raw).Trim()
         }
-        & npm.cmd run build 2>&1 | Tee-Object -FilePath $logPath -Append
-        if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed.' }
-    } finally { Pop-Location }
+        # Capture native stderr without treating the first line as a terminating error.
+        $ErrorActionPreference = 'Continue'
+        if ($installedFingerprint -ne $dependencyFingerprint) {
+            & npm.cmd ci --include=dev --cache .npm-cache 2>&1 | ForEach-Object { $_.ToString() } | Tee-Object -FilePath $logPath -Append
+            if ($LASTEXITCODE -ne 0) { throw "Frontend dependency installation failed. Log: $logPath" }
+            Set-Content -LiteralPath $dependencyStamp -Value $dependencyFingerprint -ErrorAction Stop
+        }
+        & npm.cmd run build 2>&1 | ForEach-Object { $_.ToString() } | Tee-Object -FilePath $logPath -Append
+        if ($LASTEXITCODE -ne 0) { throw "Frontend build failed. Log: $logPath" }
+    } finally {
+        $ErrorActionPreference = $previousErrorPreference
+        Pop-Location
+    }
 
     Write-Host 'Starting Supermarket. Open http://localhost:8080 once Spring reports Started.'
     Write-Host 'Keep this window open while using the app. Press Ctrl+C to stop.'

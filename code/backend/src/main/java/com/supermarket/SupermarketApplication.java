@@ -2,6 +2,7 @@ package com.supermarket;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.TimeZone;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -11,6 +12,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class SupermarketApplication {
     public static void main(String[] args) {
         loadDotEnv();
+        // PostgreSQL JDBC sends the JVM's time zone ID when opening a connection.
+        if ("Asia/Saigon".equals(TimeZone.getDefault().getID())) {
+            TimeZone.setDefault(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
+        }
         SpringApplication.run(SupermarketApplication.class, args);
     }
 
