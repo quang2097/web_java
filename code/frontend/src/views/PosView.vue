@@ -226,14 +226,15 @@ runSearch();
     <section class="card">
       <div class="card-head">
         <div>
-          <span class="badge">CA SỬ DỤNG · QUÉT MÃ HÀNG & TÍNH GIÁ</span>
-          <h3>Quét mã vạch hoặc chọn mặt hàng</h3>
+          <span class="badge">TRA CỨU HÀNG HOÁ</span>
+          <h3>Quét mã & chọn mặt hàng</h3>
         </div>
       </div>
 
       <form class="bar-row" @submit.prevent="scanBarcode">
         <input
           v-model="barcode"
+          aria-label="Mã vạch mặt hàng"
           placeholder="Đưa máy quét vào đây hoặc nhập mã vạch (VD: 8934563138165)..."
           autofocus
         />
@@ -243,6 +244,7 @@ runSearch();
       <div class="bar-row compact">
         <input
           v-model="searchQuery"
+          aria-label="Tìm mặt hàng theo tên hoặc mã SKU"
           placeholder="Tìm theo tên hàng hoặc mã SKU..."
           @input="runSearch"
         />
@@ -268,34 +270,41 @@ runSearch();
         </button>
       </div>
 
-      <TransitionGroup name="list-move" tag="div" class="sku-grid">
-        <div
+      <div class="table-scroll sku-list" tabindex="0" role="region" aria-label="Danh sách mặt hàng">
+      <table class="data-table">
+        <thead><tr><th>Mặt hàng / Mã SKU</th><th>Tồn kho</th><th class="numeric">Đơn giá</th><th><span class="sr-only">Thao tác</span></th></tr></thead>
+        <tbody>
+        <tr
           v-for="sku in filteredSkus"
           :key="sku.id"
-          :class="['sku-card', { 'out-of-stock': sku.stock <= 0 }]"
-          @click="sku.stock > 0 && addSkuToCart(sku, 1)"
+          :class="{ 'out-of-stock': sku.stock <= 0 }"
         >
-          <div class="sku-card-top">
-            <span class="sku-cat">{{ sku.categoryName || 'Hàng hoá' }}</span>
+          <td>
+            <strong>{{ sku.productName }}</strong>
+            <div class="meta">{{ sku.variant }} · {{ sku.code }}</div>
+            <small class="sku-variant">{{ sku.categoryName || 'Hàng hoá' }}</small>
+          </td>
+          <td>
             <span :class="['stock-badge', sku.stock <= 10 ? 'warn' : 'ok']">
               Tồn: {{ sku.stock }} {{ sku.unit }}
             </span>
-          </div>
-          <strong class="sku-title">{{ sku.productName }}</strong>
-          <small class="sku-variant">{{ sku.variant }} · Mã: {{ sku.code }}</small>
-          <div class="sku-card-foot">
-            <span class="price">{{ formatVnd(sku.unitPrice) }}</span>
-            <button type="button" class="btn-sm" :disabled="sku.stock <= 0" @click.stop="addSkuToCart(sku, 1)">
+          </td>
+          <td class="numeric"><strong>{{ formatVnd(sku.unitPrice) }}</strong></td>
+          <td>
+            <button type="button" class="btn-sm" :aria-label="`Thêm ${sku.productName} vào hoá đơn`" :disabled="sku.stock <= 0" @click="addSkuToCart(sku, 1)">
               + Chọn
             </button>
-          </div>
-        </div>
-      </TransitionGroup>
+          </td>
+        </tr>
+        <tr v-if="!filteredSkus.length"><td colspan="4" class="empty-hint">Không có mặt hàng phù hợp.</td></tr>
+        </tbody>
+      </table>
+      </div>
 
       <!-- Khung AI-1: Nhận diện sản phẩm bằng ảnh khi mã vạch mờ/hỏng -->
       <div class="ai-box">
         <div class="ai-head">
-          <strong>📷 Nhận diện sản phẩm bằng AI (Gemini Vision)</strong>
+          <strong>Nhận diện sản phẩm bằng ảnh</strong>
           <span>Dùng khi mã vạch bị rách/mờ hoặc hàng không dán tem</span>
         </div>
         <div class="bar-row compact">
@@ -323,8 +332,8 @@ runSearch();
     <section class="card">
       <div class="card-head">
         <div>
-          <span class="badge">CA SỬ DỤNG · ĐẾM SỐ LƯỢNG & THANH TOÁN</span>
-          <h3>Giỏ hàng tại quầy ({{ cartCount }} sản phẩm)</h3>
+          <span class="badge">HOÁ ĐƠN HIỆN TẠI</span>
+          <h3>Chi tiết bán hàng ({{ cartCount }} sản phẩm)</h3>
         </div>
         <button v-if="cart.length && !activeInvoice" type="button" class="btn-ghost" @click="cart = []">
           Xoá giỏ
@@ -361,7 +370,7 @@ runSearch();
           </tr>
         </TransitionGroup>
       </table>
-      <p v-else class="empty-hint">Chưa có mặt hàng nào trong giỏ. Hãy quét mã vạch hoặc bấm "+ Thêm" ở danh sách bên trái.</p>
+      <p v-else class="empty-hint">Quét mã vạch hoặc chọn mặt hàng từ danh sách để lập hoá đơn.</p>
 
       <!-- Gợi ý mua kèm từ lịch sử hoá đơn -->
       <div v-if="recommendations.length && !activeInvoice" class="rec-strip">
@@ -412,14 +421,14 @@ runSearch();
             :class="['tab-btn', { active: paymentMethod === 'CASH' }]"
             @click="paymentMethod = 'CASH'"
           >
-            💵 Thanh toán tiền mặt
+            Tiền mặt
           </button>
           <button
             type="button"
             :class="['tab-btn', { active: paymentMethod === 'TRANSFER' }]"
             @click="paymentMethod = 'TRANSFER'"
           >
-            📱 Chuyển khoản (Tạo mã QR)
+            Chuyển khoản VietQR
           </button>
         </div>
 

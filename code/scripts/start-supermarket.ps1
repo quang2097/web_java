@@ -1,4 +1,4 @@
-param([switch]$ConfigureDatabase, [switch]$UseDocker, [switch]$NoDialogs)
+param([switch]$ConfigureDatabase, [switch]$UseDocker, [switch]$NoDialogs, [switch]$ResetAdminPassword)
 
 $ErrorActionPreference = 'Stop'
 $projectPath = Split-Path $PSScriptRoot -Parent
@@ -60,6 +60,7 @@ function Read-Login($title, $message, $username) {
 
 try {
     . (Join-Path $PSScriptRoot 'activate.ps1')
+    . (Join-Path $PSScriptRoot 'environment.ps1')
     $logDirectory = Join-Path $projectPath '.tools/logs'
     New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
     $logPath = Join-Path $logDirectory ("startup-{0}-{1}.log" -f (Get-Date -Format 'yyyyMMdd-HHmmss-fff'), $PID)
@@ -92,29 +93,26 @@ try {
     $env:DB_USER = $config.Database.UserName
     $env:DB_PASSWORD = $config.Database.GetNetworkCredential().Password
     if (!$env:DB_URL) { $env:DB_URL = 'jdbc:postgresql://localhost:5432/supermarket' }
-    $env:APP_ADMIN_USERNAME = $config.Admin.UserName
-    $env:APP_ADMIN_PASSWORD = $config.Admin.GetNetworkCredential().Password
     $env:JWT_SECRET = ([System.Net.NetworkCredential]::new('', $config.JwtSecret)).Password
 
-    # Đọc thêm biến môi trường tuỳ chọn từ code/.env (GEMINI_API_KEY, VIETQR_*) nếu chưa đặt trong môi trường
+    # Database/JWT settings retain the saved launcher configuration. Website
+    # credentials use process environment > .env > saved launcher settings.
     $dotenvPath = Join-Path $projectPath '.env'
-    if (Test-Path -LiteralPath $dotenvPath) {
-        Get-Content -LiteralPath $dotenvPath -Encoding UTF8 | ForEach-Object {
-            $line = $_.Trim()
-            if ($line -and !$line.StartsWith('#') -and $line.Contains('=')) {
-                $parts = $line.Split('=', 2)
-                $k = $parts[0].Trim()
-                $v = $parts[1].Trim().Trim('"').Trim("'")
-                if ($k -and [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($k))) {
-                    [Environment]::SetEnvironmentVariable($k, $v, 'Process')
-                }
-            }
+    $dotenv = Get-ProjectDotEnv -Path $dotenvPath
+    $adminSource = Set-WebsiteAdminEnvironment -DotEnv $dotenv -SavedAdmin $config.Admin
+    Write-Host "Website administrator credentials loaded from $adminSource."
+    foreach ($k in $dotenv.Keys) {
+        if ($k -notin @('APP_ADMIN_USERNAME', 'APP_ADMIN_PASSWORD', 'APP_ADMIN_RESET_PASSWORD') -and
+                [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($k))) {
+            [Environment]::SetEnvironmentVariable($k, $dotenv[$k], 'Process')
         }
     }
+    if ($ResetAdminPassword) { $env:APP_ADMIN_RESET_PASSWORD = 'true' }
 
     $existingWebsite = $null
     try { $existingWebsite = Invoke-WebRequest -UseBasicParsing 'http://localhost:8080' -TimeoutSec 3 } catch { }
     if ($existingWebsite -and $existingWebsite.Content -match '<title>[^<]*Supermarket</title>') {
+        if ($ResetAdminPassword) { throw 'Stop the existing Supermarket launcher with Ctrl+C, then launch again with -ResetAdminPassword. The running server has not been changed.' }
         $message = 'Supermarket is already running at http://localhost:8080. No second server was started.'
         Write-Host $message
         $message | Out-File -LiteralPath $logPath -Append -Encoding Unicode

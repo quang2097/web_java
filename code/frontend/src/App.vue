@@ -111,8 +111,8 @@ async function logout() {
         <span class="brand-icon">S</span> supermarket<span class="dot">.</span>
       </a>
       <div class="intro-copy">
-        <span class="eyebrow">HỆ THỐNG QUẢN LÝ SIÊU THỊ TÍCH HỢP AI</span>
-        <h1>Mỗi ngày vận hành.<br />Mọi việc dễ dàng.</h1>
+        <span class="eyebrow">HỆ THỐNG QUẢN LÝ SIÊU THỊ</span>
+        <h1>Cổng làm việc<br />dành cho nhân viên.</h1>
         <p>
           Bán hàng tại quầy, quản lý tồn kho, thanh toán VietQR<br />
           và trợ lý AI phân tích dữ liệu.
@@ -128,13 +128,13 @@ async function logout() {
         </div>
         <div class="ground"></div>
       </div>
-      <footer>Đồng hành cùng cửa hàng của bạn.</footer>
+      <footer>Bán hàng · Hàng hoá · Kho · Báo cáo</footer>
     </section>
 
     <section class="panel">
       <!-- Form Đăng nhập -->
       <div v-if="!showForgot" class="login-wrap">
-        <span class="section-label">CHÀO MỪNG TRỞ LẠI</span>
+        <span class="section-label">TRUY CẬP HỆ THỐNG</span>
         <h2>Đăng nhập</h2>
         <p class="muted">Nhập thông tin tài khoản để tiếp tục.</p>
         <form @submit.prevent="login">
@@ -191,7 +191,7 @@ async function logout() {
 
       <!-- Form Ca sử dụng: Quên mật khẩu -> Tạo yêu cầu đổi mật khẩu (nhập thông tin cá nhân) -->
       <div v-else class="login-wrap">
-        <span class="section-label">CA SỬ DỤNG · QUÊN MẬT KHẨU</span>
+        <span class="section-label">KHÔI PHỤC TRUY CẬP</span>
         <h2>Yêu cầu cấp lại mật khẩu</h2>
         <p class="muted">
           Nhập thông tin cá nhân đã đăng ký để gửi yêu cầu tới Quản lý / Quản trị viên.
@@ -252,23 +252,7 @@ async function logout() {
         </div>
       </div>
 
-      <nav class="topnav">
-        <button
-          v-for="item in navItems"
-          :key="item.path"
-          type="button"
-          :class="['nav-btn', { active: route.path === item.path }]"
-          @click="router.push(item.path)"
-        >
-          <span class="nav-ico">{{ item.meta.icon }}</span>
-          <span>{{ item.meta.label }}</span>
-        </button>
-      </nav>
-
       <div class="topbar-user">
-        <div class="live-pill" title="Máy chủ đang kết nối">
-          <span class="live-dot"></span> Trực tuyến
-        </div>
         <div class="user-pill">
           <strong>{{ auth.user?.fullName }}</strong>
           <span>{{ auth.roleLabel }} ({{ auth.user?.accountName }})</span>
@@ -279,7 +263,29 @@ async function logout() {
       </div>
     </header>
 
+    <aside class="sidebar">
+      <div class="sidebar-label">CHỨC NĂNG</div>
+      <nav class="topnav" aria-label="Chức năng hệ thống">
+        <button
+          v-for="item in navItems"
+          :key="item.path"
+          type="button"
+          :class="['nav-btn', { active: route.path === item.path }]"
+          :aria-current="route.path === item.path ? 'page' : undefined"
+          @click="router.push(item.path)"
+        >
+          <span>{{ item.meta.label }}</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">{{ auth.roleLabel }}<br />{{ auth.accessSummary }}</div>
+    </aside>
+
     <main class="workspace">
+      <div class="workspace-heading">
+        <span>Supermarket / {{ route.meta.label }}</span>
+        <h2>{{ route.meta.label }}</h2>
+      </div>
       <RouterView v-slot="{ Component }">
         <Transition name="page-fade" mode="out-in">
           <component :is="Component" :key="route.path" />

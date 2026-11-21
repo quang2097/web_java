@@ -17,11 +17,17 @@ See [architecture and requirement coverage](docs/architecture.md) for the ER dia
 1. Keep your installed PostgreSQL server running on `localhost:5432`. The `supermarket` database has already been created on this machine.
 2. Double-click `Start-Supermarket.cmd` in the project folder. It uses the portable Java/Maven in `.tools`, loads your saved credentials, builds the frontend, and starts Spring Boot.
 3. Wait for `Started SupermarketApplication`, then open [Supermarket](http://localhost:8080).
-4. Sign in with your **website account**, using the username/password chosen during initial setup.
+4. Sign in with your **website account**. Admin credentials are selected from process environment variables first, then `APP_ADMIN_USERNAME` / `APP_ADMIN_PASSWORD` in `.env`, then the saved launcher credentials. Set the username/password together in the same source.
 
 Docker is not required for this setup. Do not run `docker compose up -d` alongside the installed PostgreSQL server: both use port 5432. The standard launcher now uses the installed database without a Docker prompt.
 
 Keep the launcher window open while using the app. Press Ctrl+C in that window to stop the app; PostgreSQL remains running. If the app is already running, another launch reports its URL and exits without starting a second server. Configuration changes take effect after stopping and restarting the running app.
+
+### Admin password in `.env` does not work
+
+Changing `APP_ADMIN_PASSWORD` does not automatically overwrite an existing PostgreSQL account's password. To intentionally apply the configured admin password, stop the running launcher with Ctrl+C, then double-click **`Reset-Admin-Password.cmd`**. It starts the application and resets only the configured existing ADMIN account's password. It preserves disabled status and never promotes a staff/manager account. Previously issued JWTs for the changed account become invalid. Future starts can use `Start-Supermarket.cmd` as usual. No passwords are printed in startup logs.
+
+The equivalent command is `powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File scripts/start-supermarket.ps1 -ResetAdminPassword`. A direct Java launch can opt in with `APP_ADMIN_RESET_PASSWORD=true`; remove that variable after the one intended reset. An ordinary direct Java/Maven launch does not automatically load `.env`; use the launcher or set environment variables in that process.
 
 ### The three different credentials
 

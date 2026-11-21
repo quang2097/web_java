@@ -99,7 +99,7 @@ loadAll();
     <section class="card">
       <div class="card-head">
         <div>
-          <span class="badge">TỒN KHO & DỰ BÁO NHẬP HÀNG (AI-3)</span>
+          <span class="badge">TỒN KHO & DỰ BÁO NHẬP HÀNG</span>
           <h3>Dự báo nhu cầu 7 ngày tới (Weighted Moving Average 4 tuần)</h3>
         </div>
         <button type="button" class="btn-outline" @click="loadAll">Làm mới</button>

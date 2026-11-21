@@ -134,7 +134,7 @@ loadManagementData();
     <section class="card">
       <div class="card-head">
         <div>
-          <span class="badge">CA SỬ DỤNG · ĐỔI MẬT KHẨU</span>
+          <span class="badge">BẢO MẬT TÀI KHOẢN</span>
           <h3>Tài khoản của bạn ({{ auth.user?.accountName }})</h3>
         </div>
       </div>
@@ -167,7 +167,7 @@ loadManagementData();
       <div class="card-head">
         <div>
           <span class="badge">
-            CA SỬ DỤNG · TẠO TÀI KHOẢN & XỬ LÝ YÊU CẦU ĐỔI MẬT KHẨU
+            QUẢN LÝ TÀI KHOẢN & YÊU CẦU MẬT KHẨU
           </span>
           <h3>
             {{ auth.isAdmin ? 'Quản trị toàn bộ tài khoản (Admin)' : 'Quản lý tài khoản Nhân viên (Quản lý)' }}

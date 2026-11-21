@@ -164,7 +164,7 @@ loadSummary();
       <section class="card">
         <div class="card-head">
           <div>
-            <span class="badge">TRỢ LÝ PHÂN TÍCH DỮ LIỆU AI (GEMINI / LOCAL)</span>
+            <span class="badge">TRỢ LÝ PHÂN TÍCH DỮ LIỆU</span>
             <h3>Hỏi đáp trực tiếp số liệu kinh doanh & tồn kho</h3>
           </div>
         </div>
@@ -189,7 +189,7 @@ loadSummary();
               :class="['chat-bubble', m.role === 'user' ? 'user' : 'bot']"
             >
               <div class="chat-meta">
-                <strong>{{ m.role === 'user' ? 'Bạn' : '🤖 Trợ lý AI' }}</strong>
+                <strong>{{ m.role === 'user' ? 'Bạn' : 'Trợ lý AI' }}</strong>
                 <span v-if="m.mode" class="tag">{{ m.mode }}</span>
               </div>
               <pre class="chat-text">{{ m.text }}</pre>
@@ -197,7 +197,7 @@ loadSummary();
           </TransitionGroup>
 
           <div v-if="aiBusy" class="chat-bubble bot typing-bubble">
-            <div class="chat-meta"><strong>🤖 Trợ lý AI đang phân tích số liệu</strong></div>
+            <div class="chat-meta"><strong>Trợ lý AI đang phân tích số liệu</strong></div>
             <div class="typing-dots"><span></span><span></span><span></span></div>
           </div>
         </div>

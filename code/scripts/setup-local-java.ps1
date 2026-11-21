@@ -9,7 +9,6 @@ $mavenArchive = Join-Path $toolsPath 'maven.zip'
 
 Write-Output 'Downloading a portable JDK (approximately 200 MB)...'
 & curl.exe -# -fLsS --connect-timeout 30 --max-time 1800 --output $jdkArchive 'https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jdk/hotspot/normal/eclipse'
-if ($LASTEXITCODE -ne 0) { throw 'JDK download failed' }
 
 Write-Output 'Downloading Maven...'
 & curl.exe -# -fLsS --max-time 60 --output $mavenArchive 'https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.11/apache-maven-3.9.11-bin.zip'

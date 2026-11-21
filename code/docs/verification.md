@@ -1,5 +1,17 @@
 # Verification record
 
+## Admin login fix — 2026-11-21
+
+- Confirmed that the saved launcher admin password differed from `.env`, and the launcher previously gave saved credentials priority.
+- Fixed website credential precedence to process environment, then `.env`, then saved launcher settings. Incomplete credential pairs are rejected instead of being mixed between sources.
+- Added explicit administrator password reset through `Reset-Admin-Password.cmd` / `-ResetAdminPassword`. Ordinary startup preserves stored passwords. Reset refuses non-admin accounts and preserves disabled status.
+- PowerShell credential precedence regression checks passed.
+- All 14 backend tests passed with the portable Java 21/Maven toolchain, including five new bootstrap/reset tests, JWT authentication, concurrency and supermarket workflows.
+- Vue production build passed (46 transformed modules).
+- Restarted the local application against PostgreSQL 17.11 and applied the configured administrator password intentionally. Live API verification: `.env` login **200**, `/api/auth/me` **200** with ADMIN role, logout **204**. The old saved launcher password returned **401**. No credentials or bearer tokens were printed.
+
+The older record below describes the initial setup limitations, which no longer apply to the backend checks above.
+
 Checked on 2026-11-05:
 
 - `npm.cmd install`: completed; final Vue 3.5.44 / Vite 6.4.5 dependency report found **0 vulnerabilities**.
