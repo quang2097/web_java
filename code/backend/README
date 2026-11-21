@@ -1,0 +1,25 @@
+# Mã nguồn Backend (Spring Boot 3.5 + Java 17 + PostgreSQL)
+
+## Cấu trúc package (`src/main/java/com/supermarket`)
+
+- `SupermarketApplication.java`, `SecurityConfig.java`, `ApiExceptionHandler.java`: Cấu hình bảo mật OAuth2 JWT Resource Server và xử lý ngoại lệ tập trung.
+- `common/ApiException.java`: Ngoại lệ nghiệp vụ trả về mã HTTP chuẩn (`400`, `403`, `404`, `409`).
+- `domain/` & `repository/`: Các thực thể JPA và Spring Data Repository khớp với Flyway `V1`–`V4`.
+- `service/`:
+  - `AuthService.java`: Đăng nhập, cấp JWT, kiểm tra phiên và thu hồi token khi đăng xuất.
+  - `InventoryService.java`: Trừ kho nguyên tử với khoá lạc quan `@Version`.
+  - `BootstrapAccount.java` & `DemoCatalogBootstrap.java`: Tạo tài khoản quản trị ban đầu và dữ liệu siêu thị mẫu.
+- `modules/`:
+  - `account/`: Đổi mật khẩu, yêu cầu cấp lại mật khẩu, quản lý tài khoản theo phân cấp vai trò.
+  - `catalog/`: Danh mục, sản phẩm, SKU/mã vạch, nhà cung cấp.
+  - `stock/`: Tồn kho, cảnh báo sắp hết hàng, phiếu nhập kho.
+  - `pos/`: Hoá đơn bán hàng tại quầy, thanh toán tiền mặt và VietQR.
+  - `report/`: Thống kê doanh thu, top bán chạy, gợi ý mua kèm và dự báo nhu cầu 7 ngày tới (WMA 4 tuần).
+  - `ai/`: `GeminiClient` và `AiService` (nhận diện ảnh sản phẩm bằng Gemini Vision & trợ lý hỏi đáp số liệu kinh doanh).
+
+## Chạy kiểm thử
+
+```powershell
+mvn test
+```
+

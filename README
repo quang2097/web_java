@@ -1,0 +1,15 @@
+# Hệ thống Quản lý Siêu thị tích hợp AI (TTCS)
+
+Dự án xây dựng phần mềm quản lý bán hàng siêu thị tại quầy (POS), quản lý danh mục hàng hoá, tồn kho, nhập hàng, phân quyền tài khoản và tích hợp trí tuệ nhân tạo (Google Gemini Vision & trợ lý phân tích dữ liệu).
+
+## Cấu trúc kho lưu trữ
+
+| Thư mục | Nội dung |
+| --- | --- |
+| [Biểu đồ ca sử dụng](Biểu%20đồ%20ca%20sử%20dụng/README) | Các sơ đồ Use Case theo 4 tác nhân: Admin, Quản lý, Nhân viên, Khách hàng |
+| [Biểu đồ hoạt động](Biểu%20đồ%20hoạt%20động/README) | Sơ đồ hoạt động (Activity Diagram) cho các luồng nghiệp vụ chính |
+| [Biểu đồ tuần tự](Biểu%20đồ%20tuần%20tự/README) | Sơ đồ tuần tự tổng quan (Sequence Diagram) |
+| [Biểu đồ tuần tự chi tiết](Biểu%20đồ%20tuần%20tự%20chi%20tiết/README) | Sơ đồ tuần tự chi tiết tới tầng Controller / Service / Repository / Database |
+| [Thiết kế cơ sở dữ liệu](Thiết%20kế%20cơ%20sở%20dữ%20liệu/README) | Sơ đồ thực thể liên kết (ERD) và đặc tả các bảng PostgreSQL (Flyway V1–V4) |
+| [code](code/README.md) | Mã nguồn Backend (Spring Boot 3.5, Java 17, JPA, PostgreSQL) & Frontend (Vue 3.5, Vite) |
+

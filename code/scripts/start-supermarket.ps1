@@ -1,4 +1,4 @@
-param([switch]$ConfigureDatabase, [switch]$UseDocker, [switch]$NoDialogs)
+param([switch]$ConfigureDatabase, [switch]$UseDocker, [switch]$NoDialogs, [switch]$ResetAdminPassword)
 
 $ErrorActionPreference = 'Stop'
 $projectPath = Split-Path $PSScriptRoot -Parent
@@ -60,6 +60,7 @@ function Read-Login($title, $message, $username) {
 
 try {
     . (Join-Path $PSScriptRoot 'activate.ps1')
+    . (Join-Path $PSScriptRoot 'environment.ps1')
     $logDirectory = Join-Path $projectPath '.tools/logs'
     New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
     $logPath = Join-Path $logDirectory ("startup-{0}-{1}.log" -f (Get-Date -Format 'yyyyMMdd-HHmmss-fff'), $PID)
@@ -92,13 +93,26 @@ try {
     $env:DB_USER = $config.Database.UserName
     $env:DB_PASSWORD = $config.Database.GetNetworkCredential().Password
     if (!$env:DB_URL) { $env:DB_URL = 'jdbc:postgresql://localhost:5432/supermarket' }
-    $env:APP_ADMIN_USERNAME = $config.Admin.UserName
-    $env:APP_ADMIN_PASSWORD = $config.Admin.GetNetworkCredential().Password
     $env:JWT_SECRET = ([System.Net.NetworkCredential]::new('', $config.JwtSecret)).Password
+
+    # Database/JWT settings retain the saved launcher configuration. Website
+    # credentials use process environment > .env > saved launcher settings.
+    $dotenvPath = Join-Path $projectPath '.env'
+    $dotenv = Get-ProjectDotEnv -Path $dotenvPath
+    $adminSource = Set-WebsiteAdminEnvironment -DotEnv $dotenv -SavedAdmin $config.Admin
+    Write-Host "Website administrator credentials loaded from $adminSource."
+    foreach ($k in $dotenv.Keys) {
+        if ($k -notin @('APP_ADMIN_USERNAME', 'APP_ADMIN_PASSWORD', 'APP_ADMIN_RESET_PASSWORD') -and
+                [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($k))) {
+            [Environment]::SetEnvironmentVariable($k, $dotenv[$k], 'Process')
+        }
+    }
+    if ($ResetAdminPassword) { $env:APP_ADMIN_RESET_PASSWORD = 'true' }
 
     $existingWebsite = $null
     try { $existingWebsite = Invoke-WebRequest -UseBasicParsing 'http://localhost:8080' -TimeoutSec 3 } catch { }
     if ($existingWebsite -and $existingWebsite.Content -match '<title>[^<]*Supermarket</title>') {
+        if ($ResetAdminPassword) { throw 'Stop the existing Supermarket launcher with Ctrl+C, then launch again with -ResetAdminPassword. The running server has not been changed.' }
         $message = 'Supermarket is already running at http://localhost:8080. No second server was started.'
         Write-Host $message
         $message | Out-File -LiteralPath $logPath -Append -Encoding Unicode
@@ -117,14 +131,26 @@ try {
     }
     if (!(Get-Command npm.cmd -ErrorAction SilentlyContinue)) { throw 'Install Node.js with npm, then start the launcher again.' }
     Push-Location (Join-Path $projectPath 'frontend')
+    $previousErrorPreference = $ErrorActionPreference
     try {
-        if (!(Test-Path 'node_modules')) {
-            & npm.cmd ci 2>&1 | Tee-Object -FilePath $logPath -Append
-            if ($LASTEXITCODE -ne 0) { throw 'Frontend dependency installation failed.' }
+        $dependencyFingerprint = (Get-FileHash -LiteralPath 'package.json', 'package-lock.json').Hash -join ':'
+        $dependencyStamp = 'node_modules/.supermarket-dependencies'
+        $installedFingerprint = if (Test-Path -LiteralPath $dependencyStamp) {
+            (Get-Content -LiteralPath $dependencyStamp -Raw).Trim()
         }
-        & npm.cmd run build 2>&1 | Tee-Object -FilePath $logPath -Append
-        if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed.' }
-    } finally { Pop-Location }
+        # Capture native stderr without treating the first line as a terminating error.
+        $ErrorActionPreference = 'Continue'
+        if ($installedFingerprint -ne $dependencyFingerprint) {
+            & npm.cmd ci --include=dev --cache .npm-cache 2>&1 | ForEach-Object { $_.ToString() } | Tee-Object -FilePath $logPath -Append
+            if ($LASTEXITCODE -ne 0) { throw "Frontend dependency installation failed. Log: $logPath" }
+            Set-Content -LiteralPath $dependencyStamp -Value $dependencyFingerprint -ErrorAction Stop
+        }
+        & npm.cmd run build 2>&1 | ForEach-Object { $_.ToString() } | Tee-Object -FilePath $logPath -Append
+        if ($LASTEXITCODE -ne 0) { throw "Frontend build failed. Log: $logPath" }
+    } finally {
+        $ErrorActionPreference = $previousErrorPreference
+        Pop-Location
+    }
 
     Write-Host 'Starting Supermarket. Open http://localhost:8080 once Spring reports Started.'
     Write-Host 'Keep this window open while using the app. Press Ctrl+C to stop.'

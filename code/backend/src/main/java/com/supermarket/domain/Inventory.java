@@ -7,5 +7,7 @@ public class Inventory {
     @ManyToOne(fetch = FetchType.LAZY, optional = false) @JoinColumn(name = "warehouse_id", nullable = false) public Warehouse warehouse;
     @ManyToOne(fetch = FetchType.LAZY, optional = false) @JoinColumn(name = "sku_id", nullable = false) public Sku sku;
     @Column(nullable = false) public int quantity;
+    // Ngưỡng cảnh báo sắp hết hàng.
+    @Column(name = "min_quantity", nullable = false) public int minQuantity = 10;
     @Version public long version;
 }
