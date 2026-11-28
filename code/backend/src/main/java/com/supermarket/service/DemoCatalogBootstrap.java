@@ -41,9 +41,7 @@ public class DemoCatalogBootstrap implements ApplicationRunner {
 
     @Override @Transactional
     public void run(ApplicationArguments args) {
-        String url = env.getProperty("spring.datasource.url", "");
-        if (url.startsWith("jdbc:h2:mem:")) return;
-
+        if (!env.getProperty("app.demo.enabled", Boolean.class, false)) return;
         if (products.count() == 0) {
             var wh = warehouses.findFirstByOrderByIdAsc().orElseGet(() -> {
                 var w = new Warehouse();

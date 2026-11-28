@@ -1,4 +1,4 @@
-import { createMemoryHistory, createRouter } from 'vue-router';
+import { createWebHashHistory, createRouter } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
 import PosView from '../views/PosView.vue';
 import InvoicesView from '../views/InvoicesView.vue';
@@ -9,7 +9,7 @@ import AccountsView from '../views/AccountsView.vue';
 
 export const router = createRouter({
   // Dùng memory history để mọi URL đều hoạt động trong SPA được gói tĩnh trong Spring Boot
-  history: createMemoryHistory(),
+  history: createWebHashHistory(),
   routes: [
     { path: '/', redirect: '/pos' },
     { path: '/pos', name: 'pos', component: PosView, meta: { icon: '🛒', label: 'Quầy thu ngân (POS)', roles: ['ADMIN', 'MANAGER', 'STAFF'] } },

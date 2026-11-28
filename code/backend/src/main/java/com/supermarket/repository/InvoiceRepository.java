@@ -8,6 +8,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
+    @Override
+    @EntityGraph(attributePaths = {"employee", "customer"})
+    java.util.Optional<Invoice> findById(Long id);
+
     @Query("select i from Invoice i where i.status = com.supermarket.domain.Invoice.Status.PAID and i.paidAt >= :from and i.paidAt < :to")
     List<Invoice> findPaidBetween(Instant from, Instant to);
 

@@ -5,6 +5,21 @@
   background: #f3f5f4;
 }
 body { font-size: 14px; line-height: 1.5; }
+.view-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.view-fields.payment-panel { border: 1px solid #d3ddd5; padding: 14px; margin-top: 16px; }
+.loading-hint { color: #46574c; padding: 10px 0; }
+.view-fields:disabled { opacity: .75; }
+.check-label { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
+.check-label input[type='checkbox'] { width: 18px; height: 18px; min-height: 18px; flex-shrink: 0; }
+button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #367d54; outline-offset: 3px; }
+.data-table input[type='number'] { width: 120px; }
+@media print {
+  body *:not(:has(.receipt-print)):not(.receipt-print):not(.receipt-print *) { display: none !important; }
+  body, #app, .app-layout, .workspace, .pos-grid, .card { display: block !important; margin: 0; padding: 0; min-height: 0; border: 0; overflow: visible; }
+  .receipt-print { width: 100%; padding: 16px; background: white; border: 0; color: black; }
+  .no-print, .no-print * { display: none !important; }
+  .receipt-print .data-table { width: 100%; }
+}
 button, input, select { font-family: inherit; }
 button:disabled { cursor: not-allowed; }
 input, select, .bar-row.compact input,

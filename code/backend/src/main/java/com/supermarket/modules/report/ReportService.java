@@ -54,9 +54,10 @@ public class ReportService {
             var list = byDay.getOrDefault(d, List.of());
             daily.add(new DailyRevenue(d, sum(list), list.size()));
         }
-        var low = stock.lowStock();
+        var sellable = stock.storeInventory();
+        var low = sellable.stream().map(StockService.InventoryView::of).filter(StockService.InventoryView::low).toList();
         return new Summary(sum(todayList), todayList.size(), sum(weekList), weekList.size(),
-                sum(monthList), monthList.size(), skus.count(), low.size(),
+                sum(monthList), monthList.size(), skus.findAllActive().size(), low.size(),
                 daily, topProducts(days, 10), low);
     }
 
@@ -100,7 +101,7 @@ public class ReportService {
             sales.computeIfAbsent(l.sku.id, k -> new int[4])[idx] += l.quantity;
         }
         var weights = new double[]{0.4, 0.3, 0.2, 0.1};
-        return stock.listInventory().stream().map(inv -> {
+        return stock.storeInventory().stream().map(StockService.InventoryView::of).map(inv -> {
             var s = sales.getOrDefault(inv.skuId(), new int[4]);
             double fc = 0;
             for (int i = 0; i < 4; i++) fc += weights[i] * s[i];

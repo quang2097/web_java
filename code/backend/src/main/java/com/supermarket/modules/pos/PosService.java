@@ -5,6 +5,8 @@ import com.supermarket.domain.*;
 import com.supermarket.modules.stock.StockService;
 import com.supermarket.repository.*;
 import com.supermarket.service.InventoryService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -43,9 +45,12 @@ public class PosService {
         this.bankId = bankId; this.accountNo = accountNo; this.accountName = accountName;
     }
 
-    public record CartLine(Long skuId, int quantity) {}
-    public record CreateInvoice(List<CartLine> lines, String customerName, String customerPhone) {}
-    public record PayRequest(Payment.Method method, BigDecimal received, String transferRef) {}
+    public record CartLine(@NotNull @Positive Long skuId, @Min(1) @Max(9999) int quantity) {}
+    public record CreateInvoice(@NotEmpty @Size(max = 200) List<@NotNull @Valid CartLine> lines,
+                                @Size(max = 120) String customerName, @Size(max = 20) String customerPhone) {}
+    public record PayRequest(@NotNull Payment.Method method,
+                             @PositiveOrZero @Digits(integer = 15, fraction = 0) BigDecimal received,
+                             @Size(max = 64) String transferRef) {}
 
     public record LineView(Long skuId, String code, String name, String unit, int quantity, BigDecimal unitPrice, BigDecimal amount) {}
     public record PaymentView(Payment.Method method, BigDecimal amount, BigDecimal received, BigDecimal changeAmount, String transferRef) {}
@@ -66,7 +71,9 @@ public class PosService {
         var merged = new LinkedHashMap<Long, Integer>();
         for (var l : in.lines()) {
             if (l.skuId() == null || l.quantity() <= 0 || l.quantity() > 9999) throw ApiException.badRequest("Số lượng không hợp lệ.");
-            merged.merge(l.skuId(), l.quantity(), Integer::sum);
+            int quantity = merged.getOrDefault(l.skuId(), 0) + l.quantity();
+            if (quantity > 9999) throw ApiException.badRequest("Mỗi SKU chỉ được bán tối đa 9999 sản phẩm.");
+            merged.put(l.skuId(), quantity);
         }
         var warehouse = stock.storeWarehouse();
         var invoice = new Invoice();
@@ -84,6 +91,7 @@ public class PosService {
             line.invoice = invoice; line.sku = sku; line.quantity = e.getValue(); line.unitPrice = sku.unitPrice;
             lines.save(line);
             total = total.add(sku.unitPrice.multiply(BigDecimal.valueOf(e.getValue())));
+            if (total.compareTo(new BigDecimal("999999999999999")) > 0) throw ApiException.badRequest("Tổng hoá đơn vượt giới hạn.");
         }
         invoice.total = total;
         return view(invoice);
@@ -105,13 +113,22 @@ public class PosService {
     @Transactional
     public InvoiceView pay(long invoiceId, PayRequest in) {
         var invoice = invoices.findById(invoiceId).orElseThrow(() -> ApiException.notFound("Không tìm thấy hoá đơn."));
-        if (invoice.status != Invoice.Status.DRAFT) throw ApiException.conflict("Hoá đơn đã được thanh toán hoặc đã huỷ.");
         if (in.method() == null) throw ApiException.badRequest("Chọn phương thức thanh toán.");
         var received = in.method() == Payment.Method.TRANSFER ? invoice.total : in.received();
+        // A retry after a lost response must not charge or deduct stock again.
+        if (invoice.status == Invoice.Status.PAID) {
+            var prior = payments.findByInvoiceId(invoice.id).orElseThrow();
+            if (prior.method == in.method() && received != null && prior.received.compareTo(received) == 0) return view(invoice);
+            throw ApiException.conflict("Hoá đơn đã được thanh toán với thông tin khác.");
+        }
+        if (invoice.status != Invoice.Status.DRAFT) throw ApiException.conflict("Hoá đơn đã huỷ.");
+        if (in.method() == Payment.Method.TRANSFER && !qrEnabled())
+            throw ApiException.badRequest("Chưa cấu hình tài khoản nhận chuyển khoản. Vui lòng chọn tiền mặt.");
         if (received == null || received.compareTo(invoice.total) < 0) throw ApiException.badRequest("Số tiền khách đưa chưa đủ.");
 
         var warehouse = stock.storeWarehouse();
         for (var line : lines.findByInvoiceIdOrderByIdAsc(invoice.id)) {
+            if (!line.sku.product.active) throw ApiException.conflict("Mặt hàng đã ngừng kinh doanh: " + line.sku.product.name);
             var row = inventory.findByWarehouseIdAndSkuId(warehouse.id, line.sku.id)
                     .orElseThrow(() -> ApiException.conflict("Không đủ hàng: " + line.sku.product.name));
             try {
@@ -123,7 +140,8 @@ public class PosService {
         var p = new Payment();
         p.invoice = invoice; p.method = in.method(); p.amount = invoice.total; p.received = received;
         p.changeAmount = received.subtract(invoice.total);
-        p.transferRef = in.method() == Payment.Method.TRANSFER ? transferContent(invoice) : null;
+        p.transferRef = in.method() == Payment.Method.TRANSFER
+                ? (in.transferRef() == null || in.transferRef().isBlank() ? transferContent(invoice) : in.transferRef().trim()) : null;
         payments.save(p);
         invoice.status = Invoice.Status.PAID;
         invoice.paidAt = Instant.now();
@@ -134,6 +152,7 @@ public class PosService {
     @Transactional
     public InvoiceView cancel(long invoiceId) {
         var invoice = invoices.findById(invoiceId).orElseThrow(() -> ApiException.notFound("Không tìm thấy hoá đơn."));
+        if (invoice.status == Invoice.Status.CANCELLED) return view(invoice);
         if (invoice.status != Invoice.Status.DRAFT) throw ApiException.conflict("Chỉ huỷ được hoá đơn chưa thanh toán.");
         invoice.status = Invoice.Status.CANCELLED;
         return view(invoice);
@@ -166,8 +185,8 @@ public class PosService {
     }
 
     private InvoiceView view(Invoice i) {
-        var lineViews = lines.findByInvoiceIdOrderByIdAsc(i.id).stream().map(l -> new LineView(l.sku.id, l.sku.code,
-                (l.sku.product.name + " " + l.sku.variant).trim(), l.sku.unit, l.quantity, l.unitPrice,
+        var lineViews = lines.findByInvoiceIdOrderByIdAsc(i.id).stream().map(l -> new LineView(l.sku.id, l.skuCode,
+                l.itemName, l.itemUnit, l.quantity, l.unitPrice,
                 l.unitPrice.multiply(BigDecimal.valueOf(l.quantity)))).toList();
         var payment = payments.findByInvoiceId(i.id)
                 .map(p -> new PaymentView(p.method, p.amount, p.received, p.changeAmount, p.transferRef)).orElse(null);

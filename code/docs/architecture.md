@@ -1,6 +1,6 @@
 # Supermarket architecture and assignment coverage
 
-The implemented feature is **Đăng nhập**. This project now uses the requested stack: Vue 3, Spring Boot REST, Spring Security JWT, Spring Data JPA/Hibernate and PostgreSQL. Inventory and invoice entities establish the database foundation; they do not constitute a completed checkout or administration application.
+The application implements authentication, role-scoped administration, catalog and stock management, POS checkout, invoice history, reporting, forecasting and AI assistance using Vue 3, Spring Boot REST, Spring Security JWT, Spring Data JPA/Hibernate and PostgreSQL.
 
 ## Relational model
 
@@ -18,7 +18,7 @@ erDiagram
 
 Employee identity is separate from authentication credentials. Products hold shared descriptive information; each SKU holds its variant, unit, code and price. Inventory is an association between a warehouse and a SKU, with one row per pair. Invoice lines separate repeating sale items from invoice headers. Their price is a historical sale price, not a duplicated current SKU price. Invoice totals are derived from quantities and historical prices. Customer is optional for walk-in sales. Foreign keys, uniqueness, nonnegative prices/stock and positive sale quantities are enforced in SQL.
 
-Flyway migration `backend/src/main/resources/db/migration/V1__supermarket.sql` is the source of database structure. Hibernate validates it at startup rather than altering production tables. Do not edit applied migrations; add V2 and later migrations. Every core table has a matching JPA entity.
+Flyway migrations in `backend/src/main/resources/db/migration/` are the source of database structure. Hibernate validates them at startup rather than altering production tables. Do not edit applied migrations; add a new numbered migration. Every core table has a matching JPA entity.
 
 ## Login and authorization
 
@@ -37,13 +37,15 @@ The frontend keeps the JWT only in memory. Reloading or closing the page require
 | `/api/management/**` | No | Yes | Yes |
 | `/api/admin/**` | No | No | Yes |
 
-The last three are authorization policies for future modules, not existing business endpoints. Tests install temporary probe controllers to verify the policies. Updating an account through JPA increments its version and invalidates old tokens, including after password changes. Direct SQL changes must increment `accounts.version` when changing passwords.
+POS and management endpoints implement these policies; tests also install temporary probes to verify the reserved admin area. Updating an account through JPA increments its version and invalidates old tokens, including after password changes. Direct SQL changes must increment `accounts.version` when changing passwords. Password creation and reset use the same 12–72 printable ASCII character policy as bootstrap. Public login and recovery endpoints have bounded per-process rate limits.
 
 ## Concurrent stock updates
 
 `InventoryService.decreaseStock` runs inside a transaction, verifies available quantity and updates a versioned inventory entity. Hibernate includes the previous version in the update; competing writes cannot silently overwrite one another. A conflict aborts the transaction, and a database CHECK prevents negative stock. An integration test makes two transactions read the same version and asserts that only one succeeds.
 
-This is a reusable stock primitive. A future checkout service must wrap invoice writes and all stock changes in a single transaction, translate optimistic conflicts to HTTP 409, and let the cashier retry against fresh stock. Do not automatically retry payment requests.
+Checkout wraps all stock deductions, the payment record and invoice transition in one transaction. Optimistic conflicts return HTTP 409. An identical retry of a completed payment returns the original result; different payment details conflict. The client checks invoice status after a failed response before offering another attempt. POS availability and forecasts use the first warehouse, matching the warehouse used for sales. Other warehouses are tracked separately.
+
+Migration V5 preserves invoice line codes, descriptions and units alongside historical prices, and adds optimistic versioning to password requests. Existing receipt descriptions are backfilled from the catalog at migration time. Subsequent edits cannot alter saved receipt descriptions.
 
 ## Implemented business & AI modules (V2–V4)
 

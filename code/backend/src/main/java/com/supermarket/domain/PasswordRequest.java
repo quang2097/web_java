@@ -14,4 +14,5 @@ public class PasswordRequest {
     @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "handled_by") public Account handledBy;
     @Column(name = "created_at", nullable = false) public Instant createdAt = Instant.now();
     @Column(name = "handled_at") public Instant handledAt;
+    @Version public long version;
 }

@@ -15,7 +15,7 @@ public class StockController {
     private final StockService service;
     public StockController(StockService service) { this.service = service; }
 
-    public record MinRequest(@Min(0) int minQuantity) {}
+    public record MinRequest(@NotNull @Min(0) @Max(1000000) Integer minQuantity) {}
     public record WarehouseRequest(@NotBlank @Pattern(regexp = "[A-Za-z0-9_-]{1,32}") String code, @NotBlank @Size(max = 120) String name) {}
 
     @GetMapping("/inventory")
@@ -38,7 +38,7 @@ public class StockController {
     @GetMapping("/imports")
     public List<StockService.ImportView> imports() { return service.recentImports(); }
     @PostMapping("/imports")
-    public StockService.ImportView createImport(@AuthenticationPrincipal Jwt jwt, @RequestBody StockService.ImportInput r) {
+    public StockService.ImportView createImport(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody StockService.ImportInput r) {
         return service.createImport(jwt.getSubject(), r);
     }
 }

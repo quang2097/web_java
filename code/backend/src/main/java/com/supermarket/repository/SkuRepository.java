@@ -7,6 +7,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 public interface SkuRepository extends JpaRepository<Sku, Long> {
+    @Override
+    @EntityGraph(attributePaths = {"product", "product.category"})
+    Optional<Sku> findById(Long id);
+
     @EntityGraph(attributePaths = {"product", "product.category"})
     Optional<Sku> findByCode(String code);
 

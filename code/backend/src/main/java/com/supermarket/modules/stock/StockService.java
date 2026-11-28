@@ -4,6 +4,8 @@ import com.supermarket.common.ApiException;
 import com.supermarket.domain.*;
 import com.supermarket.modules.catalog.CatalogViews.WarehouseView;
 import com.supermarket.repository.*;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -56,14 +58,24 @@ public class StockService {
 
     public record InventoryView(Long id, Long warehouseId, String warehouseName, Long skuId, String code, String productName,
                                 String variant, String unit, String categoryName, int quantity, int minQuantity, boolean low) {
-        static InventoryView of(Inventory i) {
+        public static InventoryView of(Inventory i) {
             var s = i.sku; var p = s.product;
             return new InventoryView(i.id, i.warehouse.id, i.warehouse.name, s.id, s.code, p.name, s.variant, s.unit,
                     p.category == null ? null : p.category.name, i.quantity, i.minQuantity, i.quantity <= i.minQuantity);
         }
     }
-    public record ImportLineInput(Long skuId, int quantity, BigDecimal unitCost) {}
-    public record ImportInput(Long supplierId, Long warehouseId, String note, List<ImportLineInput> lines) {}
+    public record ImportLineInput(@NotNull @Positive Long skuId, @Min(1) @Max(1000000) int quantity,
+                                   @NotNull @PositiveOrZero @Digits(integer = 12, fraction = 0) BigDecimal unitCost) {}
+    public record ImportInput(@Positive Long supplierId, @Positive Long warehouseId, @Size(max = 500) String note,
+                               @NotEmpty @Size(max = 200) List<@NotNull @Valid ImportLineInput> lines) {}
+
+    @Transactional(readOnly = true)
+    public List<Inventory> storeInventory() {
+        var warehouse = warehouses.findFirstByOrderByIdAsc();
+        if (warehouse.isEmpty()) return List.of();
+        return inventory.findAllDetailed().stream()
+                .filter(i -> i.warehouse.id.equals(warehouse.get().id) && i.sku.product.active).toList();
+    }
     public record ImportLineView(Long skuId, String code, String name, int quantity, BigDecimal unitCost) {}
     public record ImportView(Long id, String supplierName, String warehouseName, String employeeName, Instant createdAt,
                              String note, BigDecimal total, List<ImportLineView> lines) {}
@@ -119,8 +131,11 @@ public class StockService {
             var line = new ImportLine();
             line.receipt = r; line.sku = sku; line.quantity = li.quantity(); line.unitCost = li.unitCost();
             importLines.save(line);
-            ensureInventoryRow(r.warehouse, sku).quantity += li.quantity();
+            var row = ensureInventoryRow(r.warehouse, sku);
+            if (row.quantity > Integer.MAX_VALUE - li.quantity()) throw ApiException.badRequest("Số lượng tồn kho vượt giới hạn.");
+            row.quantity += li.quantity();
             total = total.add(li.unitCost().multiply(BigDecimal.valueOf(li.quantity())));
+            if (total.compareTo(new BigDecimal("999999999999999")) > 0) throw ApiException.badRequest("Tổng phiếu nhập vượt giới hạn.");
         }
         r.total = total;
         inventory.flush();

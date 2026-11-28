@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, watchEffect } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { apiFetch } from './api/http';
 import { useAuthStore } from './stores/auth';
@@ -7,6 +7,9 @@ import { useAuthStore } from './stores/auth';
 const auth = useAuthStore();
 const router = useRouter();
 const route = useRoute();
+watchEffect(() => {
+  document.title = auth.isAuthenticated ? `${route.meta.label || 'Supermarket'} · Supermarket` : 'Đăng nhập · Supermarket';
+});
 
 const accountName = ref('');
 const password = ref('');
@@ -44,6 +47,8 @@ async function login() {
         ? 'Tên tài khoản hoặc mật khẩu không đúng, hoặc tài khoản đã bị khóa.'
         : response.status === 400
           ? 'Vui lòng kiểm tra tên tài khoản và mật khẩu.'
+          : response.status === 429
+            ? 'Quá nhiều lần đăng nhập. Vui lòng thử lại sau một phút.'
           : 'Không thể đăng nhập. Vui lòng thử lại sau.';
       return;
     }
@@ -90,10 +95,11 @@ async function logout() {
   if (busy.value) return;
   busy.value = true;
   try {
-    await fetch('/api/auth/logout', {
+    const response = await fetch('/api/auth/logout', {
       method: 'POST',
       headers: { Authorization: `Bearer ${auth.accessToken}` },
     });
+    if (!response.ok && response.status !== 401) throw new Error('Logout failed');
     auth.clearSession('Bạn đã đăng xuất.');
   } catch {
     auth.authMessage = 'Không thể đăng xuất trên máy chủ. Vui lòng thử lại.';
@@ -176,7 +182,7 @@ async function logout() {
             </button>
           </div>
           <div class="forgot-row">
-            <button type="button" class="text-button" @click="showForgot = true">
+            <button type="button" class="text-button" :disabled="busy" @click="showForgot = true">
               Quên mật khẩu? Tạo yêu cầu cấp lại
             </button>
           </div>
@@ -197,31 +203,31 @@ async function logout() {
           Nhập thông tin cá nhân đã đăng ký để gửi yêu cầu tới Quản lý / Quản trị viên.
         </p>
         <form @submit.prevent="submitForgotRequest">
-          <label>Tên tài khoản</label>
+          <label for="forgot-account">Tên tài khoản</label>
           <input
-            v-model="forgotForm.accountName"
+            id="forgot-account" v-model="forgotForm.accountName" maxlength="64"
             required
             pattern="[A-Za-z0-9_.\-]{3,64}"
             placeholder="VD: cashier"
             :disabled="busy"
           />
-          <label>Họ và tên nhân viên</label>
+          <label for="forgot-full-name">Họ và tên nhân viên</label>
           <input
-            v-model="forgotForm.fullName"
+            id="forgot-full-name" v-model="forgotForm.fullName" maxlength="120"
             required
             placeholder="Nhập đúng họ tên trên hồ sơ"
             :disabled="busy"
           />
-          <label>Mã nhân viên</label>
+          <label for="forgot-employee-code">Mã nhân viên</label>
           <input
-            v-model="forgotForm.employeeCode"
+            id="forgot-employee-code" v-model="forgotForm.employeeCode" maxlength="32"
             required
             placeholder="VD: E001"
             :disabled="busy"
           />
-          <label>Lý do / Ghi chú (tuỳ chọn)</label>
+          <label for="forgot-reason">Lý do / Ghi chú (tuỳ chọn)</label>
           <input
-            v-model="forgotForm.reason"
+            id="forgot-reason" v-model="forgotForm.reason" maxlength="500"
             placeholder="VD: Quên mật khẩu sau kỳ nghỉ"
             :disabled="busy"
           />
@@ -231,7 +237,7 @@ async function logout() {
           </button>
         </form>
         <div class="forgot-row" style="text-align: center; margin-top: 16px">
-          <button type="button" class="text-button" @click="showForgot = false">
+          <button type="button" class="text-button" :disabled="busy" @click="showForgot = false">
             ← Quay lại màn hình đăng nhập
           </button>
         </div>

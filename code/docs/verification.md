@@ -1,5 +1,15 @@
 # Verification record
 
+## Feature polish audit — 2026-11-28
+
+- Reviewed all six screens and the authentication, catalog, stock, POS, reporting, AI and account services. Findings and changes are recorded in [feature audit](feature-audit.md).
+- Final backend run: **24 tests passed, zero failures/errors/skips**, including eight new feature regressions and two authentication rate-limit tests. The final run also rejects fractional integer inputs and missing account-state/stock-threshold fields.
+- Flyway V1–V5 applied successfully on fresh H2 databases. Receipt snapshots preserve descriptions after SKU/catalog changes; password requests use optimistic versioning.
+- Production frontend build passed after the UI changes.
+- Browser QA ran on a separate server at port 8091 using an in-memory H2 database with explicit demo data, no live Gemini key and no configured bank account. The user's PostgreSQL data was not changed.
+- Verified sign-in/out, unavailable AI/transfer states, cart locking, correct receipt descriptions, draft recovery from history, cash payment (17,500 received as 20,000; change 2,500), SKU editing, forecast import with an entered cost, reports, local AI response and account-screen rendering. Browser console reported no errors or warnings during the final flow.
+- Stopped the temporary QA server after verification. Live Gemini, real bank settlement and PostgreSQL upgrade testing were not performed. VietQR settlement remains a cashier confirmation workflow.
+
 ## Admin login fix — 2026-11-21
 
 - Confirmed that the saved launcher admin password differed from `.env`, and the launcher previously gave saved credentials priority.

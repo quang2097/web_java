@@ -37,6 +37,7 @@ public class AiService {
         if (image == null || image.isEmpty()) throw ApiException.badRequest("Vui lòng chọn hoặc chụp một ảnh sản phẩm.");
         String type = Optional.ofNullable(image.getContentType()).orElse("").toLowerCase(Locale.ROOT);
         if (!IMAGE_TYPES.contains(type)) throw ApiException.badRequest("Chỉ hỗ trợ ảnh JPEG, PNG hoặc WEBP.");
+        if (image.getSize() > 5 * 1024 * 1024) throw ApiException.badRequest("Ảnh quá lớn (tối đa 5MB).");
         var active = catalog.allActiveSkus();
         if (active.isEmpty()) return new RecognitionResult(List.of(), "Chưa có sản phẩm nào trong hệ thống.");
 
@@ -132,7 +133,7 @@ public class AiService {
                             .append(" → gợi ý nhập ").append(r.suggestedImport()).append(" ").append(r.unit()).append("\n");
             }
         }
-        if (lower.contains("bán chạy") || lower.contains("top") || sb.isEmpty()) {
+        if (lower.contains("doanh thu") || lower.contains("tổng quan") || lower.contains("bán chạy") || lower.contains("top") || sb.isEmpty()) {
             sb.append("Tổng quan doanh thu:\n")
                     .append("• Hôm nay: ").append(vnd(s.todayRevenue())).append(" (").append(s.todayInvoices()).append(" hoá đơn)\n")
                     .append("• 7 ngày qua: ").append(vnd(s.weekRevenue())).append(" (").append(s.weekInvoices()).append(" hoá đơn)\n")
@@ -143,7 +144,7 @@ public class AiService {
                         .append(": ").append(p.quantity()).append(" SP (").append(vnd(p.revenue())).append(")\n"));
             }
         }
-        sb.append("\n(Đang dùng bộ phân tích nội bộ. Đặt biến môi trường GEMINI_API_KEY để bật trả lời tự nhiên bằng Google Gemini.)");
+        sb.append("\n(Đang dùng bộ phân tích nội bộ.)");
         return sb.toString();
     }
 }

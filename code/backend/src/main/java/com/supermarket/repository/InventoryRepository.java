@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 public interface InventoryRepository extends JpaRepository<Inventory, Long> {
+    @EntityGraph(attributePaths = {"warehouse", "sku", "sku.product"})
     Optional<Inventory> findByWarehouseIdAndSkuId(Long warehouseId, Long skuId);
 
     @EntityGraph(attributePaths = {"warehouse", "sku", "sku.product", "sku.product.category"})

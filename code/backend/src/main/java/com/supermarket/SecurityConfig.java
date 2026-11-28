@@ -44,6 +44,12 @@ public class SecurityConfig {
     }
 
     @Bean SecretKey jwtKey(@Value("${app.jwt.secret}") String secret) {
+        if (secret.isBlank()) {
+            byte[] ephemeral = new byte[32];
+            new java.security.SecureRandom().nextBytes(ephemeral);
+            org.slf4j.LoggerFactory.getLogger(SecurityConfig.class).warn("JWT_SECRET is unset; using an ephemeral signing key. Tokens will expire on restart.");
+            return new SecretKeySpec(ephemeral, "HmacSHA256");
+        }
         byte[] bytes = Base64.getDecoder().decode(secret);
         if (bytes.length < 32) throw new IllegalArgumentException("JWT_SECRET must be Base64 of at least 32 random bytes");
         return new SecretKeySpec(bytes, "HmacSHA256");
@@ -82,6 +88,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .requestCache(cache -> cache.disable())
                 .formLogin(form -> form.disable()).httpBasic(basic -> basic.disable()).logout(logout -> logout.disable())
+                .addFilterBefore(new AuthRateLimitFilter(), org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/", "/index.html", "/assets/**", "/favicon.ico").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/password-requests").permitAll()

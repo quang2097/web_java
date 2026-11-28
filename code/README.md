@@ -1,8 +1,8 @@
-# Supermarket: sign-in with the required project stack
+# Supermarket management
 
-Vue 3 + Vite frontend, Java 17+ Spring Boot REST backend, Spring Security JWT, Spring Data JPA/Hibernate, PostgreSQL and Flyway. The completed feature is sign-in/sign-out. The normalized schema and JPA entities also cover products, SKUs, warehouses, inventory, invoices, invoice lines, employees and customers.
+Vue 3 + Vite frontend, Java 17+ Spring Boot REST backend, Spring Security JWT, Spring Data JPA/Hibernate, PostgreSQL and Flyway. Implemented features include sign-in/out, role-scoped account management, password recovery requests, catalog management, stock imports, cash/VietQR checkout, invoice history and printing, reports, forecasting, recommendations and AI assistance.
 
-See [architecture and requirement coverage](docs/architecture.md) for the ER diagram, role permissions, concurrency design and remaining POS/payment modules.
+See [architecture and requirement coverage](docs/architecture.md) for the ER diagram, role permissions and concurrency design, and [feature audit](docs/feature-audit.md) for the completed polish and operational limits.
 
 ## Prerequisites
 
@@ -27,7 +27,7 @@ Keep the launcher window open while using the app. Press Ctrl+C in that window t
 
 Changing `APP_ADMIN_PASSWORD` does not automatically overwrite an existing PostgreSQL account's password. To intentionally apply the configured admin password, stop the running launcher with Ctrl+C, then double-click **`Reset-Admin-Password.cmd`**. It starts the application and resets only the configured existing ADMIN account's password. It preserves disabled status and never promotes a staff/manager account. Previously issued JWTs for the changed account become invalid. Future starts can use `Start-Supermarket.cmd` as usual. No passwords are printed in startup logs.
 
-The equivalent command is `powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File scripts/start-supermarket.ps1 -ResetAdminPassword`. A direct Java launch can opt in with `APP_ADMIN_RESET_PASSWORD=true`; remove that variable after the one intended reset. An ordinary direct Java/Maven launch does not automatically load `.env`; use the launcher or set environment variables in that process.
+The equivalent command is `powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File scripts/start-supermarket.ps1 -ResetAdminPassword`. A direct Java launch can opt in with `APP_ADMIN_RESET_PASSWORD=true`; remove that variable after the one intended reset. A direct Java/Maven launch reads `.env` when present; process environment variables take priority.
 
 ### The three different credentials
 
@@ -104,7 +104,11 @@ For frontend development, keep the backend on port 8080 and run `npm.cmd run dev
 
 Set `GEMINI_API_KEY` in the environment to enable live Google Gemini responses for vision recognition and natural-language analytics; when unset, the analytics assistant automatically uses the built-in local analytics engine.
 
-Malformed input returns 400; incorrect credentials return 401. Missing, expired, tampered or revoked tokens return 401; insufficient role permissions return 403. No password hashes are returned by the API. JWTs expire after 15 minutes and remain in browser memory only: reloading requires a new login. Forgot password currently provides administrator guidance.
+Malformed input returns 400; incorrect credentials return 401. Missing, expired, tampered or revoked tokens return 401; insufficient role permissions return 403. Public login and recovery requests are rate limited (429 with `Retry-After`). No password hashes are returned by the API. JWTs expire after 15 minutes and remain in browser memory only: reloading requires a new login. Forgot password creates an employee-verified request for a manager or administrator to review.
+
+VietQR requires configured receiving bank details and cashier confirmation that funds arrived; it does not provide bank settlement verification. Without those details, use cash. Draft invoices remain available in **Hoá đơn** after leaving POS or signing in again. Repeating an identical completed payment returns the saved result without another stock deduction. Catalog, import costs and cash use whole VNĐ amounts.
+
+New databases start without sample products or sales. Set `APP_DEMO_ENABLED=true` only for demonstration databases. This does not remove sample data already present. A direct Java launch reads `.env` automatically. If no JWT secret is supplied, the server generates a random key for that process; use a stable random `JWT_SECRET` for deployment. The Windows launcher retains its encrypted saved key.
 
 ## Database queries
 
@@ -118,7 +122,7 @@ WHERE a.account_name = ?;
 
 Bootstrap saves employee/account entities. Logout saves a token ID and expiration in `revoked_tokens`; a scheduled task cleans expired records. Each authenticated request also checks account state and revocation, so this design deliberately uses database validation alongside JWT verification.
 
-The previous file-based H2 database is not migrated. This version initializes a fresh PostgreSQL schema. H2 remains a **test-only dependency** for isolated tests in PostgreSQL compatibility mode.
+The previous file-based H2 database is not migrated. This version initializes a fresh PostgreSQL schema. H2 is available for isolated tests and local QA in PostgreSQL compatibility mode; PostgreSQL is the operational database.
 
 ## Verification
 
@@ -133,4 +137,4 @@ Backend tests cover ORM authentication, invalid credentials, malformed input, di
 
 If Java and Maven are unavailable, optional `scripts/setup-local-java.ps1` downloads a portable JDK 21 and Maven into the ignored `.tools` directory without changing your system installation. Run `scripts/test-backend.ps1` afterward to test with that toolchain. Downloads require internet access.
 
-Use HTTPS and login throttling when deploying. Database credentials, JWT secret and any future merchant secrets belong outside source control.
+Use HTTPS when deploying. The built-in authentication limiter is per process and uses the direct client address; multi-instance deployments should apply a shared limiter at the trusted gateway. Database credentials, JWT secret and merchant secrets belong outside source control.

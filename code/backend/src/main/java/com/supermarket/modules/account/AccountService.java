@@ -40,9 +40,9 @@ public class AccountService {
     }
 
     static void checkPasswordPolicy(String password) {
-        if (password == null || password.length() < 8 || password.length() > 72
+        if (password == null || password.length() < 12 || password.length() > 72
                 || password.chars().anyMatch(c -> c < 32 || c > 126))
-            throw ApiException.badRequest("Mật khẩu mới phải dài 8–72 ký tự, chỉ gồm chữ không dấu, số và ký tự đặc biệt.");
+            throw ApiException.badRequest("Mật khẩu mới phải dài 12–72 ký tự ASCII có thể in.");
     }
 
     private Account current(String accountName) {

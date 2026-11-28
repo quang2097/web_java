@@ -5,6 +5,8 @@ import com.supermarket.domain.*;
 import com.supermarket.modules.catalog.CatalogViews.*;
 import com.supermarket.modules.stock.StockService;
 import com.supermarket.repository.*;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -26,13 +28,17 @@ public class CatalogService {
         this.suppliers = suppliers; this.inventory = inventory; this.stock = stock;
     }
 
-    public record SkuInput(String code, String variant, String unit, BigDecimal unitPrice) {}
-    public record ProductInput(String name, String description, Long categoryId, String imageUrl, Boolean active, List<SkuInput> skus) {}
+    public record SkuInput(@NotBlank @Pattern(regexp = "[A-Za-z0-9_-]{3,64}") String code,
+                           @Size(max = 120) String variant, @Size(max = 32) String unit,
+                           @NotNull @PositiveOrZero @Digits(integer = 12, fraction = 0) BigDecimal unitPrice) {}
+    public record ProductInput(@NotBlank @Size(max = 160) String name, @Size(max = 1000) String description,
+                               @Positive Long categoryId, @Size(max = 500) String imageUrl, Boolean active,
+                               @Size(max = 200) List<@NotNull @Valid SkuInput> skus) {}
 
-    /** Tồn kho theo SKU (cộng tất cả các kho). */
+    /** Sellable stock at the checkout warehouse, not stock held elsewhere. */
     @Transactional(readOnly = true)
     public Map<Long, Long> stockBySku() {
-        return inventory.findAllDetailed().stream()
+        return stock.storeInventory().stream()
                 .collect(Collectors.groupingBy(i -> i.sku.id, Collectors.summingLong(i -> i.quantity)));
     }
 
@@ -66,7 +72,7 @@ public class CatalogService {
     public SkuView findByCode(String code) {
         var s = skus.findByCode(code.trim()).orElseThrow(() -> ApiException.notFound("Không tìm thấy sản phẩm có mã " + code));
         if (!s.product.active) throw ApiException.notFound("Sản phẩm đã ngừng kinh doanh.");
-        return SkuView.of(s, inventory.totalQuantity(s.id));
+        return SkuView.of(s, stockBySku().getOrDefault(s.id, 0L));
     }
     @Transactional(readOnly = true)
     public List<SkuView> allActiveSkus() {

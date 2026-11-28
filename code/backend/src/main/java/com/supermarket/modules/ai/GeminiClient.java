@@ -62,8 +62,18 @@ public class GeminiClient {
             if (res.statusCode() >= 400)
                 throw new ApiException(HttpStatus.BAD_GATEWAY, "Gemini trả lỗi HTTP " + res.statusCode() + ". Vui lòng kiểm tra lại API key.");
             JsonNode root = json.readTree(res.body());
-            return root.path("candidates").path(0).path("content").path("parts").path(0).path("text").asText("").trim();
+            var answer = new StringBuilder();
+            for (var part : root.path("candidates").path(0).path("content").path("parts")) {
+                if (!part.path("thought").asBoolean(false)) answer.append(part.path("text").asText(""));
+            }
+            if (answer.toString().isBlank()) throw new ApiException(HttpStatus.BAD_GATEWAY,
+                    "Không nhận được câu trả lời từ Gemini. Vui lòng thử lại.");
+            return answer.toString().trim();
         } catch (ApiException e) { throw e; }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "Yêu cầu Gemini đã bị gián đoạn.");
+        }
         catch (Exception e) {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "Không kết nối được tới Gemini API. Vui lòng thử lại sau.");
         }

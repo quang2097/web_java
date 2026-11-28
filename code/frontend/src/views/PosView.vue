@@ -1,5 +1,6 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, onBeforeUnmount } from 'vue';
+import InvoicePayment from '../components/InvoicePayment.vue';
 import { apiFetch, formatVnd } from '../api/http';
 
 const barcode = ref('');
@@ -15,6 +16,26 @@ const busy = ref(false);
 const notice = ref('');
 const errorText = ref('');
 const bumpId = ref(null);
+const searching = ref(false);
+const scanning = ref(false);
+const aiAvailable = ref(false);
+let searchSequence = 0;
+let recommendationSequence = 0;
+let searchTimer;
+const cartLocked = computed(() => busy.value || Boolean(activeInvoice.value));
+onBeforeUnmount(() => clearTimeout(searchTimer));
+function scheduleSearch() {
+  clearTimeout(searchTimer);
+  searchSequence++;
+  searchTimer = setTimeout(runSearch, 250);
+}
+function clearCart() {
+  if (cartLocked.value) return;
+  cart.value = [];
+  recommendations.value = [];
+  recommendationSequence++;
+}
+apiFetch('/api/pos/ai/status').then(status => { aiAvailable.value = status.geminiConfigured; }).catch(() => {});
 
 const filteredSkus = computed(() => {
   if (selectedCategory.value === 'ALL') return searchResults.value;
@@ -23,8 +44,6 @@ const filteredSkus = computed(() => {
 
 // Hoá đơn vừa tạo / đang chờ thanh toán
 const activeInvoice = ref(null);
-const paymentMethod = ref('CASH');
-const cashReceived = ref('');
 const completedInvoice = ref(null);
 
 // Nhận diện bằng camera/ảnh (AI-1)
@@ -39,11 +58,6 @@ const cartTotal = computed(() =>
 const cartCount = computed(() =>
   cart.value.reduce((sum, item) => sum + item.quantity, 0)
 );
-const changePreview = computed(() => {
-  if (!activeInvoice.value || paymentMethod.value !== 'CASH') return 0;
-  const rec = Number(cashReceived.value || 0);
-  return Math.max(0, rec - Number(activeInvoice.value.total));
-});
 
 function clearMessages() {
   notice.value = '';
@@ -51,8 +65,14 @@ function clearMessages() {
 }
 
 function addSkuToCart(sku, qty = 1) {
+  if (cartLocked.value) return;
   clearMessages();
+  completedInvoice.value = null;
   const existing = cart.value.find((i) => i.id === sku.id);
+  if ((existing?.quantity || 0) + qty > Math.min(sku.stock, 9999)) {
+    errorText.value = 'Số lượng vượt tồn kho hiện tại hoặc giới hạn 9999 sản phẩm.';
+    return;
+  }
   if (existing) {
     existing.quantity += qty;
   } else {
@@ -74,6 +94,8 @@ function addSkuToCart(sku, qty = 1) {
 }
 
 function updateQty(item, delta) {
+  if (cartLocked.value) return;
+  if (delta > 0 && item.quantity >= Math.min(item.stock, 9999)) return;
   item.quantity += delta;
   if (item.quantity <= 0) {
     cart.value = cart.value.filter((i) => i.id !== item.id);
@@ -83,41 +105,48 @@ function updateQty(item, delta) {
 
 async function scanBarcode() {
   const code = barcode.value.trim();
-  if (!code) return;
+  if (!code || cartLocked.value || scanning.value) return;
+  scanning.value = true;
   clearMessages();
   try {
     const sku = await apiFetch(`/api/pos/skus/by-code/${encodeURIComponent(code)}`);
     addSkuToCart(sku, 1);
     barcode.value = '';
-    notice.value = `Đã thêm: ${sku.productName} ${sku.variant || ''}`;
+    if (!errorText.value) notice.value = `Đã thêm: ${sku.productName} ${sku.variant || ''}`;
   } catch (err) {
     errorText.value = err.message;
-  }
+  } finally { scanning.value = false; }
 }
 
 async function runSearch() {
+  clearTimeout(searchTimer);
+  const sequence = ++searchSequence;
+  searching.value = true;
   try {
     const [skus, cats] = await Promise.all([
       apiFetch(`/api/pos/skus?q=${encodeURIComponent(searchQuery.value.trim())}`),
       categories.value.length ? Promise.resolve(categories.value) : apiFetch('/api/pos/categories'),
     ]);
+    if (sequence !== searchSequence) return;
     searchResults.value = skus;
     categories.value = cats;
   } catch (err) {
-    errorText.value = err.message;
-  }
+    if (sequence === searchSequence) errorText.value = err.message;
+  } finally { if (sequence === searchSequence) searching.value = false; }
 }
 
 async function loadRecommendations() {
+  const sequence = ++recommendationSequence;
   const ids = cart.value.map((i) => i.id);
   if (!ids.length) {
     recommendations.value = [];
     return;
   }
   try {
-    recommendations.value = await apiFetch(`/api/pos/recommendations?skuIds=${ids.join(',')}`);
+    const result = await apiFetch(`/api/pos/recommendations?skuIds=${ids.join(',')}`);
+    if (sequence === recommendationSequence) recommendations.value = result;
   } catch {
-    recommendations.value = [];
+    if (sequence === recommendationSequence) recommendations.value = [];
   }
 }
 
@@ -131,7 +160,16 @@ async function addRecommendation(rec) {
 }
 
 function onSelectAiImage(event) {
-  aiImageFile.value = event.target.files?.[0] || null;
+  const file = event.target.files?.[0] || null;
+  aiMatches.value = [];
+  aiExplanation.value = '';
+  if (file && (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024)) {
+    errorText.value = 'Chọn ảnh JPEG, PNG hoặc WEBP có dung lượng tối đa 5MB.';
+    aiImageFile.value = null;
+    event.target.value = '';
+    return;
+  }
+  aiImageFile.value = file;
 }
 
 async function recognizeByAi() {
@@ -154,7 +192,7 @@ async function recognizeByAi() {
 }
 
 async function startCheckout() {
-  if (!cart.value.length || busy.value) return;
+  if (!cart.value.length || cartLocked.value) return;
   busy.value = true;
   clearMessages();
   completedInvoice.value = null;
@@ -168,7 +206,8 @@ async function startCheckout() {
       },
     });
     activeInvoice.value = inv;
-    cashReceived.value = String(inv.total);
+    // Align the cart with the server's current prices and quantities.
+    cart.value = inv.lines.map(line => ({ id: line.skuId, code: line.code, name: line.name, unit: line.unit, unitPrice: Number(line.unitPrice), quantity: line.quantity, stock: cart.value.find(i => i.id === line.skuId)?.stock || line.quantity }));
   } catch (err) {
     errorText.value = err.message;
   } finally {
@@ -176,46 +215,21 @@ async function startCheckout() {
   }
 }
 
-async function confirmPayment() {
-  if (!activeInvoice.value || busy.value) return;
-  busy.value = true;
+function onPaid(paid) {
+  completedInvoice.value = paid;
+  activeInvoice.value = null;
+  clearCart();
+  customerName.value = '';
+  customerPhone.value = '';
+  notice.value = `Thanh toán thành công hoá đơn ${paid.code}!`;
+  runSearch();
+}
+function onCancelled() {
+  activeInvoice.value = null;
   clearMessages();
-  try {
-    const paid = await apiFetch(`/api/pos/invoices/${activeInvoice.value.id}/pay`, {
-      method: 'POST',
-      body: {
-        method: paymentMethod.value,
-        received: paymentMethod.value === 'CASH' ? Number(cashReceived.value || 0) : activeInvoice.value.total,
-      },
-    });
-    completedInvoice.value = paid;
-    activeInvoice.value = null;
-    cart.value = [];
-    recommendations.value = [];
-    customerName.value = '';
-    customerPhone.value = '';
-    notice.value = `Thanh toán thành công hoá đơn ${paid.code}!`;
-    runSearch();
-  } catch (err) {
-    errorText.value = err.message;
-  } finally {
-    busy.value = false;
-  }
+  notice.value = 'Đã huỷ hoá đơn nháp. Bạn có thể sửa giỏ hàng.';
 }
-
-async function cancelDraft() {
-  if (!activeInvoice.value || busy.value) return;
-  busy.value = true;
-  try {
-    await apiFetch(`/api/pos/invoices/${activeInvoice.value.id}/cancel`, { method: 'POST' });
-    activeInvoice.value = null;
-    notice.value = 'Đã huỷ hoá đơn nháp.';
-  } catch (err) {
-    errorText.value = err.message;
-  } finally {
-    busy.value = false;
-  }
-}
+function printReceipt() { window.print(); }
 
 runSearch();
 </script>
@@ -233,12 +247,12 @@ runSearch();
 
       <form class="bar-row" @submit.prevent="scanBarcode">
         <input
-          v-model="barcode"
+          v-model="barcode" :disabled="cartLocked || scanning" maxlength="64"
           aria-label="Mã vạch mặt hàng"
           placeholder="Đưa máy quét vào đây hoặc nhập mã vạch (VD: 8934563138165)..."
           autofocus
         />
-        <button type="submit" class="btn-solid">+ Quét mã</button>
+        <button type="submit" class="btn-solid" :disabled="cartLocked || scanning">+ Quét mã</button>
       </form>
 
       <div class="bar-row compact">
@@ -246,7 +260,7 @@ runSearch();
           v-model="searchQuery"
           aria-label="Tìm mặt hàng theo tên hoặc mã SKU"
           placeholder="Tìm theo tên hàng hoặc mã SKU..."
-          @input="runSearch"
+          @input="scheduleSearch"
         />
         <button type="button" class="btn-outline" @click="runSearch">Làm mới</button>
       </div>
@@ -270,6 +284,7 @@ runSearch();
         </button>
       </div>
 
+      <p v-if="searching" role="status" class="loading-hint">Đang tìm mặt hàng…</p>
       <div class="table-scroll sku-list" tabindex="0" role="region" aria-label="Danh sách mặt hàng">
       <table class="data-table">
         <thead><tr><th>Mặt hàng / Mã SKU</th><th>Tồn kho</th><th class="numeric">Đơn giá</th><th><span class="sr-only">Thao tác</span></th></tr></thead>
@@ -291,12 +306,12 @@ runSearch();
           </td>
           <td class="numeric"><strong>{{ formatVnd(sku.unitPrice) }}</strong></td>
           <td>
-            <button type="button" class="btn-sm" :aria-label="`Thêm ${sku.productName} vào hoá đơn`" :disabled="sku.stock <= 0" @click="addSkuToCart(sku, 1)">
+            <button type="button" class="btn-sm" :aria-label="`Thêm ${sku.productName} vào hoá đơn`" :disabled="cartLocked || sku.stock <= 0" @click="addSkuToCart(sku, 1)">
               + Chọn
             </button>
           </td>
         </tr>
-        <tr v-if="!filteredSkus.length"><td colspan="4" class="empty-hint">Không có mặt hàng phù hợp.</td></tr>
+        <tr v-if="!searching && !filteredSkus.length"><td colspan="4" class="empty-hint">Không có mặt hàng phù hợp.</td></tr>
         </tbody>
       </table>
       </div>
@@ -308,11 +323,12 @@ runSearch();
           <span>Dùng khi mã vạch bị rách/mờ hoặc hàng không dán tem</span>
         </div>
         <div class="bar-row compact">
-          <input type="file" accept="image/jpeg,image/png,image/webp" @change="onSelectAiImage" />
-          <button type="button" class="btn-outline" :disabled="!aiImageFile || aiBusy" @click="recognizeByAi">
+          <input :disabled="!aiAvailable || aiBusy" aria-label="Ảnh sản phẩm (tối đa 5MB)" type="file" accept="image/jpeg,image/png,image/webp" @change="onSelectAiImage" />
+          <button type="button" class="btn-outline" :disabled="!aiAvailable || !aiImageFile || aiBusy" @click="recognizeByAi">
             {{ aiBusy ? 'Đang nhận diện…' : 'Nhận diện ảnh' }}
           </button>
         </div>
+        <p v-if="!aiAvailable" class="meta">Nhận diện ảnh chưa khả dụng. Vui lòng quét mã hoặc tìm sản phẩm.</p>
         <p v-if="aiExplanation" class="ai-note">{{ aiExplanation }}</p>
         <div v-if="aiMatches.length" class="chip-row">
           <button
@@ -320,7 +336,7 @@ runSearch();
             :key="m.id"
             type="button"
             class="chip"
-            @click="addSkuToCart(m, 1)"
+            :disabled="cartLocked || m.stock <= 0" @click="addSkuToCart(m, 1)"
           >
             + {{ m.productName }} {{ m.variant }} ({{ formatVnd(m.unitPrice) }})
           </button>
@@ -335,13 +351,13 @@ runSearch();
           <span class="badge">HOÁ ĐƠN HIỆN TẠI</span>
           <h3>Chi tiết bán hàng ({{ cartCount }} sản phẩm)</h3>
         </div>
-        <button v-if="cart.length && !activeInvoice" type="button" class="btn-ghost" @click="cart = []">
+        <button v-if="cart.length && !activeInvoice" type="button" class="btn-ghost" :disabled="cartLocked" @click="clearCart">
           Xoá giỏ
         </button>
       </div>
 
-      <p v-if="notice" class="alert ok">{{ notice }}</p>
-      <p v-if="errorText" class="alert err">{{ errorText }}</p>
+      <p v-if="notice" class="alert ok" role="status">{{ notice }}</p>
+      <p v-if="errorText" class="alert err" role="alert">{{ errorText }}</p>
 
       <table v-if="cart.length" class="data-table">
         <thead>
@@ -361,9 +377,9 @@ runSearch();
             <td>{{ formatVnd(item.unitPrice) }}</td>
             <td>
               <div class="qty-ctrl">
-                <button type="button" :disabled="Boolean(activeInvoice)" @click="updateQty(item, -1)">−</button>
+                <button type="button" :disabled="cartLocked" :aria-label="`Giảm số lượng ${item.name}`" @click="updateQty(item, -1)">−</button>
                 <span>{{ item.quantity }}</span>
-                <button type="button" :disabled="Boolean(activeInvoice)" @click="updateQty(item, 1)">+</button>
+                <button type="button" :disabled="cartLocked || item.quantity >= Math.min(item.stock, 9999)" :aria-label="`Tăng số lượng ${item.name}`" @click="updateQty(item, 1)">+</button>
               </div>
             </td>
             <td><strong>{{ formatVnd(item.unitPrice * item.quantity) }}</strong></td>
@@ -395,12 +411,12 @@ runSearch();
       <div v-if="!activeInvoice && cart.length" class="checkout-box">
         <div class="two-col">
           <div>
-            <label>Tên khách hàng (tuỳ chọn)</label>
-            <input v-model="customerName" placeholder="Khách lẻ" />
+            <label for="posview-field-1">Tên khách hàng (tuỳ chọn)</label>
+            <input id="posview-field-1" v-model="customerName" :disabled="busy" maxlength="120" aria-label="Tên khách hàng" placeholder="Khách lẻ" />
           </div>
           <div>
-            <label>Số điện thoại (tuỳ chọn)</label>
-            <input v-model="customerPhone" placeholder="VD: 0901234567" />
+            <label for="posview-field-2">Số điện thoại (tuỳ chọn)</label>
+            <input id="posview-field-2" v-model="customerPhone" :disabled="busy" maxlength="20" aria-label="Số điện thoại khách hàng" placeholder="VD: 0901234567" />
           </div>
         </div>
         <button type="button" class="btn-solid full" :disabled="busy" @click="startCheckout">
@@ -408,62 +424,13 @@ runSearch();
         </button>
       </div>
 
-      <!-- Bước 2: Chọn tiền mặt hoặc chuyển khoản VietQR -->
-      <div v-if="activeInvoice" class="payment-panel">
-        <div class="pay-header">
-          <strong>Hoá đơn {{ activeInvoice.code }} · {{ formatVnd(activeInvoice.total) }}</strong>
-          <span class="tag warn">Chờ thanh toán</span>
-        </div>
-
-        <div class="method-tabs">
-          <button
-            type="button"
-            :class="['tab-btn', { active: paymentMethod === 'CASH' }]"
-            @click="paymentMethod = 'CASH'"
-          >
-            Tiền mặt
-          </button>
-          <button
-            type="button"
-            :class="['tab-btn', { active: paymentMethod === 'TRANSFER' }]"
-            @click="paymentMethod = 'TRANSFER'"
-          >
-            Chuyển khoản VietQR
-          </button>
-        </div>
-
-        <div v-if="paymentMethod === 'CASH'" class="cash-area">
-          <label>Số tiền khách đưa (VNĐ)</label>
-          <input v-model="cashReceived" type="number" min="0" step="1000" />
-          <p class="change-line">
-            Tiền thừa trả khách: <strong>{{ formatVnd(changePreview) }}</strong>
-          </p>
-        </div>
-
-        <div v-else class="qr-area">
-          <p class="meta">Nội dung chuyển khoản: <strong>{{ activeInvoice.transferContent }}</strong></p>
-          <img
-            v-if="activeInvoice.qrUrl"
-            :src="activeInvoice.qrUrl"
-            alt="Mã VietQR thanh toán"
-            class="qr-img"
-          />
-        </div>
-
-        <div class="bar-row">
-          <button type="button" class="btn-solid" :disabled="busy" @click="confirmPayment">
-            {{ busy ? 'Đang xác nhận…' : '✓ Xác nhận đã thu tiền' }}
-          </button>
-          <button type="button" class="btn-outline" :disabled="busy" @click="cancelDraft">
-            Huỷ hoá đơn
-          </button>
-        </div>
-      </div>
+      <InvoicePayment v-if="activeInvoice" :key="activeInvoice.id" :invoice="activeInvoice" @paid="onPaid" @cancelled="onCancelled" />
 
       <!-- Phiếu in hoá đơn vừa hoàn tất -->
-      <div v-if="completedInvoice" class="receipt-box">
+      <div v-if="completedInvoice" class="receipt-box receipt-print">
         <div class="pay-header">
           <strong>Phiếu thanh toán {{ completedInvoice.code }}</strong>
+          <button type="button" class="btn-outline no-print" @click="printReceipt">In hoá đơn</button>
           <span class="tag ok">ĐÃ THANH TOÁN</span>
         </div>
         <p class="meta">

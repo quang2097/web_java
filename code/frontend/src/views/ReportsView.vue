@@ -6,6 +6,9 @@ import { apiFetch, formatVnd } from '../api/http';
 Chart.register(...registerables);
 
 const summary = ref(null);
+const loading = ref(false);
+const errorText = ref('');
+let disposed = false;
 const canvasRef = ref(null);
 let chartInstance = null;
 
@@ -27,9 +30,17 @@ const quickQuestions = [
 ];
 
 async function loadSummary() {
-  summary.value = await apiFetch('/api/management/reports/summary?days=14');
-  await nextTick();
-  renderChart();
+  if (loading.value) return;
+  loading.value = true;
+  errorText.value = '';
+  try {
+    const data = await apiFetch('/api/management/reports/summary?days=14');
+    if (disposed) return;
+    summary.value = data;
+    await nextTick();
+    if (!disposed) renderChart();
+  } catch (err) { errorText.value = err.message; }
+  finally { loading.value = false; }
 }
 
 function renderChart() {
@@ -79,6 +90,7 @@ async function askAi(preset) {
 }
 
 onBeforeUnmount(() => {
+  disposed = true;
   if (chartInstance) chartInstance.destroy();
 });
 
@@ -87,6 +99,8 @@ loadSummary();
 
 <template>
   <div>
+    <p v-if="errorText" role="alert" class="alert err">{{ errorText }}</p>
+    <p v-if="loading" role="status" class="loading-hint">Đang tải báo cáo…</p>
     <!-- Thẻ KPI tổng quan -->
     <div v-if="summary" class="kpi-grid">
       <div class="kpi-card">
@@ -132,11 +146,11 @@ loadSummary();
             <span class="badge">BIỂU ĐỒ DOANH THU 14 NGÀY</span>
             <h3>Xu hướng doanh thu & Top bán chạy</h3>
           </div>
-          <button type="button" class="btn-outline" @click="loadSummary">Làm mới</button>
+          <button type="button" class="btn-outline" :disabled="loading" @click="loadSummary">Làm mới</button>
         </div>
 
         <div class="chart-wrap">
-          <canvas ref="canvasRef"></canvas>
+          <canvas ref="canvasRef" role="img" aria-label="Biểu đồ doanh thu 14 ngày; dữ liệu chi tiết ở bảng bên dưới."></canvas>
         </div>
 
         <h4 style="margin-top: 20px">Top sản phẩm bán chạy (14 ngày)</h4>
@@ -158,6 +172,13 @@ loadSummary();
             </tr>
           </tbody>
         </table>
+        <p v-else-if="!loading" class="empty-hint">Chưa có sản phẩm bán ra trong kỳ báo cáo.</p>
+        <details v-if="summary">
+          <summary>Doanh thu từng ngày (bảng dữ liệu)</summary>
+          <table class="data-table"><thead><tr><th>Ngày</th><th>Hoá đơn</th><th>Doanh thu</th></tr></thead>
+            <tbody><tr v-for="d in summary.daily" :key="d.date"><td>{{ d.date }}</td><td>{{ d.invoices }}</td><td>{{ formatVnd(d.revenue) }}</td></tr></tbody>
+          </table>
+        </details>
       </section>
 
       <!-- Trợ lý AI hỏi đáp dữ liệu (AI-2) -->
@@ -175,13 +196,14 @@ loadSummary();
             :key="q"
             type="button"
             class="chip"
+            :disabled="aiBusy"
             @click="askAi(q)"
           >
             {{ q }}
           </button>
         </div>
 
-        <div class="chat-feed">
+        <div class="chat-feed" role="log" aria-live="polite" aria-label="Hội thoại phân tích dữ liệu">
           <TransitionGroup name="list-move">
             <div
               v-for="(m, idx) in messages"
@@ -205,6 +227,8 @@ loadSummary();
         <form class="bar-row" @submit.prevent="askAi()">
           <input
             v-model="question"
+            maxlength="1000"
+            aria-label="Câu hỏi cho trợ lý phân tích"
             placeholder="Nhập câu hỏi (VD: Mặt hàng nào cần nhập gấp tuần này?)..."
             :disabled="aiBusy"
           />

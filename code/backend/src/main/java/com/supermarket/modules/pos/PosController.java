@@ -1,4 +1,5 @@
 package com.supermarket.modules.pos;
+import jakarta.validation.Valid;
 
 import java.util.List;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -12,11 +13,11 @@ public class PosController {
     public PosController(PosService service) { this.service = service; }
 
     @PostMapping("/invoices")
-    public PosService.InvoiceView create(@AuthenticationPrincipal Jwt jwt, @RequestBody PosService.CreateInvoice r) {
+    public PosService.InvoiceView create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody PosService.CreateInvoice r) {
         return service.createInvoice(jwt.getSubject(), r);
     }
     @PostMapping("/invoices/{id}/pay")
-    public PosService.InvoiceView pay(@PathVariable long id, @RequestBody PosService.PayRequest r) { return service.pay(id, r); }
+    public PosService.InvoiceView pay(@PathVariable long id, @Valid @RequestBody PosService.PayRequest r) { return service.pay(id, r); }
 
     @PostMapping("/invoices/{id}/cancel")
     public PosService.InvoiceView cancel(@PathVariable long id) { return service.cancel(id); }

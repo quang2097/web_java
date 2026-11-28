@@ -27,7 +27,7 @@ public class AccountController {
                                        @NotBlank @Size(max = 120) String fullName,
                                        @NotBlank @Size(max = 32) String employeeCode,
                                        @NotNull Role role) {}
-    public record EnabledRequest(boolean enabled) {}
+    public record EnabledRequest(@NotNull Boolean enabled) {}
 
     @PostMapping("/api/auth/change-password")
     public ResponseEntity<Void> changePassword(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody ChangePasswordRequest r) {
@@ -65,7 +65,7 @@ public class AccountController {
         return service.createAccount(jwt.getSubject(), r.accountName(), r.password(), r.fullName(), r.employeeCode(), r.role());
     }
     @PutMapping("/api/management/accounts/{id}/enabled")
-    public AccountService.AccountView enabled(@AuthenticationPrincipal Jwt jwt, @PathVariable long id, @RequestBody EnabledRequest r) {
+    public AccountService.AccountView enabled(@AuthenticationPrincipal Jwt jwt, @PathVariable long id, @Valid @RequestBody EnabledRequest r) {
         return service.setEnabled(jwt.getSubject(), id, r.enabled());
     }
 }

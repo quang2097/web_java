@@ -36,13 +36,13 @@ public class CatalogController {
     @GetMapping("/api/management/products")
     public List<ProductView> products() { return service.listProducts(); }
     @PostMapping("/api/management/products")
-    public ResponseEntity<Void> createProduct(@RequestBody CatalogService.ProductInput r) { service.createProduct(r); return ResponseEntity.noContent().build(); }
+    public ResponseEntity<Void> createProduct(@Valid @RequestBody CatalogService.ProductInput r) { service.createProduct(r); return ResponseEntity.noContent().build(); }
     @PutMapping("/api/management/products/{id}")
-    public ResponseEntity<Void> updateProduct(@PathVariable long id, @RequestBody CatalogService.ProductInput r) { service.updateProduct(id, r); return ResponseEntity.noContent().build(); }
+    public ResponseEntity<Void> updateProduct(@PathVariable long id, @Valid @RequestBody CatalogService.ProductInput r) { service.updateProduct(id, r); return ResponseEntity.noContent().build(); }
     @PostMapping("/api/management/products/{id}/skus")
-    public ResponseEntity<Void> addSku(@PathVariable long id, @RequestBody CatalogService.SkuInput r) { service.addSku(id, r); return ResponseEntity.noContent().build(); }
+    public ResponseEntity<Void> addSku(@PathVariable long id, @Valid @RequestBody CatalogService.SkuInput r) { service.addSku(id, r); return ResponseEntity.noContent().build(); }
     @PutMapping("/api/management/skus/{id}")
-    public ResponseEntity<Void> updateSku(@PathVariable long id, @RequestBody CatalogService.SkuInput r) { service.updateSku(id, r); return ResponseEntity.noContent().build(); }
+    public ResponseEntity<Void> updateSku(@PathVariable long id, @Valid @RequestBody CatalogService.SkuInput r) { service.updateSku(id, r); return ResponseEntity.noContent().build(); }
 
     @GetMapping("/api/management/suppliers")
     public List<SupplierView> suppliers() { return service.listSuppliers(); }

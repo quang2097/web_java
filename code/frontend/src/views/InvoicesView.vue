@@ -1,21 +1,30 @@
 <script setup>
 import { ref } from 'vue';
 import { apiFetch, formatDateTime, formatVnd } from '../api/http';
+import InvoicePayment from '../components/InvoicePayment.vue';
 
 const invoices = ref([]);
 const selected = ref(null);
 const errorText = ref('');
+const loading = ref(false);
+
+async function onInvoiceUpdated(invoice) {
+  selected.value = invoice;
+  await load();
+}
+function printReceipt() { window.print(); }
 
 async function load() {
+  if (loading.value) return;
+  loading.value = true;
   errorText.value = '';
   try {
     invoices.value = await apiFetch('/api/pos/invoices?limit=50');
-    if (invoices.value.length && !selected.value) {
-      selected.value = invoices.value[0];
-    }
+    const currentId = selected.value?.id;
+    selected.value = invoices.value.find(i => i.id === currentId) || invoices.value[0] || null;
   } catch (err) {
     errorText.value = err.message;
-  }
+  } finally { loading.value = false; }
 }
 
 load();
@@ -29,9 +38,10 @@ load();
           <span class="badge">LỊCH SỬ BÁN HÀNG</span>
           <h3>50 hoá đơn gần nhất</h3>
         </div>
-        <button type="button" class="btn-outline" @click="load">Làm mới</button>
+        <button type="button" class="btn-outline" :disabled="loading" @click="load">Làm mới</button>
       </div>
-      <p v-if="errorText" class="alert err">{{ errorText }}</p>
+      <p v-if="errorText" role="alert" class="alert err">{{ errorText }}</p>
+      <p v-if="loading" role="status" class="loading-hint">Đang tải hoá đơn…</p>
 
       <table class="data-table">
         <thead>
@@ -48,10 +58,8 @@ load();
             v-for="inv in invoices"
             :key="inv.id"
             :class="{ 'row-active': selected?.id === inv.id }"
-            style="cursor: pointer"
-            @click="selected = inv"
           >
-            <td><strong>{{ inv.code }}</strong></td>
+            <td><button type="button" class="text-button" :aria-pressed="selected?.id === inv.id" @click="selected = inv">{{ inv.code }}</button></td>
             <td>{{ formatDateTime(inv.paidAt || inv.createdAt) }}</td>
             <td>{{ inv.cashier }}</td>
             <td><strong>{{ formatVnd(inv.total) }}</strong></td>
@@ -61,6 +69,7 @@ load();
               </span>
             </td>
           </tr>
+          <tr v-if="!loading && !invoices.length"><td colspan="5" class="empty-hint">Chưa có hoá đơn. Bắt đầu bán hàng tại quầy thu ngân.</td></tr>
         </tbody>
       </table>
     </section>
@@ -73,7 +82,10 @@ load();
         </div>
       </div>
 
-      <div v-if="selected">
+      <div v-if="selected" :class="{ 'receipt-print': selected.status === 'PAID' }">
+        <h3>{{ selected.code }} · {{ selected.status === 'PAID' ? 'Đã thanh toán' : selected.status === 'DRAFT' ? 'Chờ thanh toán' : 'Đã huỷ' }}</h3>
+        <p class="meta">{{ formatDateTime(selected.paidAt || selected.createdAt) }}</p>
+        <button v-if="selected.status === 'PAID'" type="button" class="btn-outline no-print" @click="printReceipt">In hoá đơn</button>
         <p class="meta">
           Thu ngân: <strong>{{ selected.cashier }}</strong> · Khách hàng:
           <strong>{{ selected.customerName || 'Khách lẻ' }}</strong>
@@ -111,6 +123,7 @@ load();
           <span>Tổng cộng</span>
           <strong>{{ formatVnd(selected.total) }}</strong>
         </div>
+        <InvoicePayment v-if="selected.status === 'DRAFT'" :key="selected.id" :invoice="selected" @paid="onInvoiceUpdated" @cancelled="onInvoiceUpdated" />
       </div>
     </section>
   </div>

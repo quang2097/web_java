@@ -12,6 +12,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -19,7 +21,7 @@ public class ApiExceptionHandler {
     ResponseEntity<Map<String, String>> authentication() {
         return ResponseEntity.status(401).body(Map.of("message", "Tên tài khoản hoặc mật khẩu không đúng, hoặc tài khoản đã bị khóa."));
     }
-    @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
+    @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class, MissingServletRequestParameterException.class, MissingServletRequestPartException.class})
     ResponseEntity<Map<String, String>> validation(HttpServletRequest request) {
         String message = request.getRequestURI().startsWith("/api/auth/login")
                 ? "Thông tin đăng nhập không hợp lệ." : "Dữ liệu gửi lên không hợp lệ. Vui lòng kiểm tra lại.";

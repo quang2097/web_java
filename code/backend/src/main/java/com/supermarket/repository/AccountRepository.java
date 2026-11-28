@@ -6,6 +6,10 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AccountRepository extends JpaRepository<Account, Long> {
+    @Override
+    @EntityGraph(attributePaths = "employee")
+    Optional<Account> findById(Long id);
+
     @EntityGraph(attributePaths = "employee")
     Optional<Account> findByAccountName(String accountName);
 
